@@ -1,8 +1,8 @@
 #define _GNU_SOURCE
-#include <endian.h>
 #include <stdlib.h>
 #include <string.h>
 #include "dvh.h"
+#include "endian.h"
 
 struct dvh_pt_s dvh_getPar(struct dvh_s *dvh, int parNum)
 {

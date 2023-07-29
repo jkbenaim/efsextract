@@ -2,8 +2,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdnoreturn.h>
 #include "fileslice.h"
+#include "noreturn.h"
 
 #define BLKSIZ 512
 #define EFS_BLK_SB	(1)
@@ -121,8 +121,8 @@ struct efs_dirblk_s {
 /*
  * Locations of the efs superblock, bitmap and root inode.
  */
-#define	EFS_SUPERBB	((daddr_t)1)		/* bb # of the superblock */
-#define	EFS_BITMAPBB	((daddr_t)2) 		/* bb of the bitmap, pre 3.3*/
+#define	EFS_SUPERBB	(1)			/* bb # of the superblock */
+#define	EFS_BITMAPBB	(2)			/* bb of the bitmap, pre 3.3*/
 #define	EFS_SUPERBOFF	BBTOB(EFS_SUPERBB)	/* superblock byte offset */
 #define	EFS_BITMAPBOFF	BBTOB(EFS_BITMAPBB)	/* bitmap byte offset */
 #define	EFS_ROOTINO	((efs_ino_t)2)		/* where else... */
@@ -154,7 +154,7 @@ struct efs_dirblk_s {
 
 /* inode number to bb, relative to cylinder group */
 #define	EFS_ITOCGBB(fs, i) \
-	((daddr_t) (((i) >> EFS_INOPBBSHIFT) % (fs)->fs_cgisize))
+	((size_t) (((i) >> EFS_INOPBBSHIFT) % (fs)->fs_cgisize))
 
 /* inode number to offset from bb base */
 #define	EFS_ITOO(fs, i) \
@@ -170,7 +170,7 @@ struct efs_dirblk_s {
 
 /* inode number to disk bb number */
 #define	EFS_ITOBB(fs, i) \
-	((daddr_t) ((fs)->fs_firstcg + \
+	((size_t) ((fs)->fs_firstcg + \
 		    (EFS_ITOCG(fs, i) * (fs)->fs_cgfsize) + \
 		    EFS_ITOCGBB(fs, i)))
 
@@ -180,7 +180,7 @@ struct efs_dirblk_s {
 
 /* cylinder group number to disk bb of base of cg */
 #define	EFS_CGIMIN(fs, cg) \
-	((daddr_t) ((fs)->fs_firstcg + (cg) * (fs)->fs_cgfsize))
+	((size_t) ((fs)->fs_firstcg + (cg) * (fs)->fs_cgfsize))
 
 /* inode number to base inode number in its chunk */
 #define	EFS_ITOCHUNKI(fs, cg, inum) \

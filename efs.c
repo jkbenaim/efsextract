@@ -1,11 +1,11 @@
 #define _GNU_SOURCE
-#include <endian.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "dvh.h"
 #include "efs.h"
+#include "endian.h"
 
 extern char *__progname;
 

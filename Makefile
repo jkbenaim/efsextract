@@ -11,7 +11,7 @@ CFLAGS  += $(shell pkg-config --cflags ${libs})
 endif
 
 LDFLAGS += ${EXTRAS}
-CFLAGS  += -std=gnu99 -Og -ggdb ${EXTRAS}
+CFLAGS  += -std=gnu99 -ggdb ${EXTRAS}
 
 .PHONY: all
 all:	$(target)
