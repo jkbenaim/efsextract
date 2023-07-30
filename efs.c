@@ -116,6 +116,15 @@ uint32_t be24toh(uint32_t x)
 #endif
 }
 
+struct efs_extent_s efs_extenttoh(struct efs_extent_s extent)
+{
+	struct efs_extent_s out;
+	out.ex_magic = extent.ex_magic;
+	out.ex_bn = be24toh(extent.ex_bn);
+	out.ex_length = extent.ex_length;
+	out.ex_offset = be24toh(extent.ex_offset);
+	return out;
+}
 
 struct efs_dinode_s efs_dinodetoh(struct efs_dinode_s inode)
 {
@@ -137,8 +146,6 @@ struct efs_dinode_s efs_dinodetoh(struct efs_dinode_s inode)
 
 	//printf("numextents: %u\n", out.di_numextents);
 
-	if (out.di_numextents > EFS_DIRECTEXTENTS) return out;
-
 	switch (out.di_mode & IFMT) {
 	case IFCHR:
 	case IFBLK:
@@ -146,11 +153,8 @@ struct efs_dinode_s efs_dinodetoh(struct efs_dinode_s inode)
 		out.di_u.di_dev.odev = be16toh(inode.di_u.di_dev.odev);
 		break;
 	default:
-		for (i = 0; i < out.di_numextents; i++) {
-			out.di_u.di_extents[i].ex_magic = inode.di_u.di_extents[i].ex_magic;
-			out.di_u.di_extents[i].ex_bn = be24toh(inode.di_u.di_extents[i].ex_bn);
-			out.di_u.di_extents[i].ex_length = inode.di_u.di_extents[i].ex_length;
-			out.di_u.di_extents[i].ex_offset = be24toh(inode.di_u.di_extents[i].ex_offset);
+		for (i = 0; i < EFS_DIRECTEXTENTS; i++) {
+			out.di_u.di_extents[i] = efs_extenttoh(inode.di_u.di_extents[i]);
 		}
 		break;
 	}
@@ -158,15 +162,6 @@ struct efs_dinode_s efs_dinodetoh(struct efs_dinode_s inode)
 	return out;
 }
 
-struct efs_extent_s efs_extenttoh(struct efs_extent_s extent)
-{
-	struct efs_extent_s out;
-	out.ex_magic = extent.ex_magic;
-	out.ex_bn = be24toh(extent.ex_bn);
-	out.ex_length = extent.ex_length;
-	out.ex_offset = be24toh(extent.ex_offset);
-	return out;
-}
 
 const char *efs_strerror(efs_err_t e)
 {

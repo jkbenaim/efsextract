@@ -119,6 +119,50 @@ void print_queue(void)
 	printf("tail\n");
 }
 
+int write_extent(efs_ctx_t *ctx, FILE *outf, struct efs_extent_s ex, size_t nbytes)
+{
+	size_t rc;
+	efs_err_t erc;
+	void *buf;
+	buf = malloc(EFS_MAXEXTENTS * BLKSIZ);
+	if (!buf) err(1, "in malloc");
+
+	erc = efs_get_blocks(ctx, buf, ex.ex_bn, ex.ex_length);
+	if (erc != EFS_ERR_OK)
+		errefs(1, erc, "while reading extent");
+	rc = fseek(outf, ex.ex_offset * BLKSIZ, SEEK_SET);
+	if (rc == -1)
+		err(1, "while seeking before writing extent");
+	rc = fwrite(buf, nbytes, 1, outf);
+	if (rc != 1)
+		err(1, "while writing extent");
+	
+
+	free(buf);
+	return 0;
+}
+
+size_t write_extents(efs_ctx_t *ctx, FILE *outf, struct efs_extent_s *exs, size_t nex, size_t filesize)
+{
+	size_t bytes_left = filesize;
+
+	for (unsigned exnum = 0; (exnum < nex) && bytes_left; exnum++) {
+		size_t nbytes;
+		struct efs_extent_s ex;
+		ex = exs[exnum];
+		if (ex.ex_length > EFS_MAXEXTENTLEN)
+			errx(1, "bad extent length");
+		if (bytes_left >= (ex.ex_length * BLKSIZ)) {
+			nbytes = ex.ex_length * BLKSIZ;
+		} else {
+			nbytes = bytes_left;
+		}
+		write_extent(ctx, outf, ex, nbytes);
+		bytes_left -= nbytes;
+	}
+	return bytes_left;
+}
+
 int qflag = 0;
 int lflag = 0;
 int Pflag = 0;
@@ -233,9 +277,50 @@ int main(int argc, char *argv[])
 			break;
 		case IFREG:
 			if (!lflag) {
-				FILE *out = fopen(qe->path, "w");
-				if (!out) warn("couldn't create file '%s'", qe->path);
-				fclose(out);
+				uint8_t *buf = NULL;
+				size_t bufsiz = EFS_MAXEXTENTLEN; // in blocks
+				size_t bytes_left = inode.di_size;
+
+				buf = malloc(BLKSIZ * bufsiz);
+				if (!buf) err(1, "in malloc");
+
+				FILE *outf = fopen(qe->path, "w");
+				if (!outf) warn("couldn't create file '%s'", qe->path);
+
+				if (inode.di_numextents > EFS_DIRECTEXTENTS) {
+					efs_err_t erc;
+					struct efs_extent_ex;
+					struct efs_extent_s *buf;
+					unsigned num_indirect;
+
+					num_indirect = inode.di_u.di_extents[0].ex_offset;
+
+					buf = malloc(BLKSIZ * EFS_MAXEXTENTS);
+					if (!buf) err(1, "in malloc");
+
+					for (unsigned exnum = 0; exnum < num_indirect; exnum++) {
+						struct efs_extent_s ex;
+						size_t numextents;
+						ex = inode.di_u.di_extents[exnum];
+						erc = efs_get_blocks(ctx, buf, ex.ex_bn, ex.ex_length);
+						if (erc != EFS_ERR_OK) errefs(1, erc, "while reading indirect extent");
+
+						numextents = (BLKSIZ * ex.ex_length) / sizeof(ex);
+
+						for (unsigned a = 0; a < numextents; a++) {
+							buf[a] = efs_extenttoh(buf[a]);
+						}
+
+						bytes_left = write_extents(ctx, outf, buf, numextents, bytes_left);
+					}
+					free(buf);
+				} else {
+					// direct extents
+					bytes_left = write_extents(ctx, outf, inode.di_u.di_extents, inode.di_numextents, bytes_left);
+				}
+
+				fclose(outf);
+				free(buf);
 			}
 			break;
 		case IFIFO:
