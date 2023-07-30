@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 
 #include "efs.h"
 #include "endian.h"
@@ -19,21 +20,23 @@ noreturn static void usage(void);
 
 struct qent_s {
 	struct qent_s *next;
-	struct efs_extent_s ex;
+	struct qent_s *prev;
 	char *path;
+	efs_ino_t ino;
 };
 struct qent_s *head = NULL;
 struct qent_s *tail = NULL;
 
-int queue_add(struct efs_extent_s ex, char *path, char *name)
+/* add to tail of queue */
+int queue_enqueue(efs_ino_t ino, char *path, char *name)
 {
 	struct qent_s *q;
 	int rc;
-	if (ex.ex_magic != 0) return -1;
-	q = calloc(1, sizeof(*head));
+	q = calloc(1, sizeof(*q));
 	if (!q) err(1, "in malloc");
-	q->next = NULL;
-	q->ex = ex;
+
+	q->ino = ino;
+
 	if (strlen(path) == 0) {
 		q->path = strdup(name);
 	} else {
@@ -41,12 +44,14 @@ int queue_add(struct efs_extent_s ex, char *path, char *name)
 		if (rc == -1)
 			errx(1, "in asprintf");
 	}
-	if (!head) {
-		head = q;
-	} else {
+
+	if (tail)
 		tail->next = q;
-	}
+	q->prev = tail;
 	tail = q;
+	if (!head)
+		head = q;
+
 	return 0;
 }
 
@@ -54,16 +59,50 @@ struct qent_s *queue_dequeue(void)
 {
 	struct qent_s *out;
 	out = head;
-	if (head)
+
+	if (head) {
 		head = head->next;
+		if (head)
+			head->prev = NULL;
+	}
 	if (!head)
 		tail = NULL;
+	
+	return out;
+}
+
+struct qent_s *queue_dequeue_lowest(void)
+{
+	struct qent_s *out = head;
+	static size_t count = 0;
+	
+	if (!out) return NULL;
+
+	for (struct qent_s *cur = head; cur; cur = cur->next) {
+		if (cur->ino < out->ino)
+			out = cur;
+	}
+
+	if (head == out) {
+		head = out->next;
+	}
+	if (tail == out) {
+		tail = out->prev;
+	}
+	if (out->next) {
+		out->next->prev = out->prev;
+	}
+	if (out->prev) {
+		out->prev->next = out->next;
+	}
+	out->next = out->prev = NULL;
+
 	return out;
 }
 
 void print_ex(struct efs_extent_s ext)
 {
-	printf("\t%u %u %u %u ",
+	printf("%u %u %u %u\n",
 		ext.ex_magic,
 		ext.ex_bn,
 		ext.ex_length,
@@ -75,124 +114,200 @@ void print_queue(void)
 {
 	printf("head\n");
 	for (struct qent_s *q = head; q; q=q->next) {
-		print_ex(q->ex);
 		printf("%s\n", q->path);
 	}
 	printf("tail\n");
 }
 
+int qflag = 0;
+int lflag = 0;
+int Pflag = 0;
+
 int main(int argc, char *argv[])
 {
 	char *filename = NULL;
 	int rc;
+	int parnum = -1;
 
 	char buf[BLKSIZ * 2];
 	
-	while ((rc = getopt(argc, argv, "f:")) != -1)
+	while ((rc = getopt(argc, argv, "lp:Pq")) != -1)
 		switch (rc) {
-		case 'f':
-			if (filename)
+		case 'l':
+			if (lflag != 0)
 				usage();
-			filename = optarg;
+			lflag = 1;
+			break;
+		case 'p':
+			if (parnum != -1)
+				usage();
+			{
+				char *ptr = NULL;
+				parnum = strtol(optarg, &ptr, 10);
+				if (*ptr)
+					errx(1, "bad partition number '%s'", optarg);
+			}
+		case 'P':
+			if (Pflag != 0)
+				usage();
+			Pflag = 1;
+			break;
+		case 'q':
+			if (qflag != 0)
+				usage();
+			qflag = 1;
 			break;
 		default:
 			usage();
 		}
 	argc -= optind;
 	argv += optind;
-	if (not filename)
-		usage();
 	if (*argv != NULL)
+		filename = *argv;
+	else
 		usage();
+	if (parnum == -1)
+		parnum = 7;
+
+	if (Pflag && lflag)
+		errx(1, "cannot combine P and l flags");
 	
-	efs_ctx_t *ctx;
+	efs_ctx_t *ctx = NULL;
 	efs_err_t erc;
-	erc = efs_open(&ctx, filename);
+	erc = efs_open(&ctx, filename, parnum);
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open '%s'", filename);
 	
 	erc = efs_get_blocks(ctx, &buf, 0, 2);
-	if (erc != EFS_ERR_OK) {
+	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "while reading blocks");
-	}
 
 	struct efs_dinode_s inode;
 
-	struct efs_extent_s rootinoex;
-	rootinoex.ex_magic = 0;
-	rootinoex.ex_bn = 2;
-	rootinoex.ex_length = 1;
-	rootinoex.ex_offset = 0;
+	queue_enqueue(2, "", "");
 
-	queue_add(rootinoex, "", "");
-	print_queue();
-
-	for (struct qent_s *qe = queue_dequeue(); qe; free(qe),qe = queue_dequeue()) {
-		inode = efs_get_inode(ctx, qe->ex.ex_bn);
-		//hexdump(&inode, sizeof(inode));
-
-		switch (inode.di_mode & IFMT) {
+	for (struct qent_s *qe = queue_dequeue_lowest(); qe; free(qe),qe = queue_dequeue_lowest()) {
+		inode = efs_get_inode(ctx, qe->ino);
+		if (inode.di_version) {
+			errx(1, "bad inode version %u\n", inode.di_version);
+		}
+		if (!qflag && (strlen(qe->path) > 0)) {
+			printf("%s\n", qe->path);
+		}
+		unsigned filetype = inode.di_mode & IFMT;
+		switch (filetype) {
 		case IFDIR:
-			
-			printf("dir: '%s'\n", qe->path);
-			if (strlen(qe->path)) {
-				//rc = mkdir(qe->path, 0755);
-				//if (rc == -1) err(1, "couldn't make directory '%s'", qe->path);
+			if (!lflag && strlen(qe->path)) {
+				rc = mkdir(qe->path, 0755);
+				if (rc == -1) err(1, "couldn't make directory '%s'", qe->path);
 			}
-			for (unsigned i = 0; i < inode.di_numextents; i++) {
-				uint8_t buf[BLKSIZ];
-				const struct efs_dirblk_s *dirblk;
+			for (unsigned exnum = 0; exnum < inode.di_numextents; exnum++) {
+				struct efs_dirblk_s *dirblks;
 				struct efs_extent_s ex;
-				ex = inode.di_u.di_extents[i];
-				rc = efs_get_blocks(ctx, &buf, ex.ex_bn, 1);
-				if (rc != EFS_ERR_OK) errefs(1, ctx->err, "while reading dirblk");
-				dirblk = (struct efs_dirblk_s *) &buf;
-				if (be16toh(dirblk->magic) != EFS_DIRBLK_MAGIC) {
-					errx(1, "bad dirblk magic");
+				ex = inode.di_u.di_extents[exnum];
+				dirblks = calloc(ex.ex_length, BLKSIZ);
+				if (!dirblks) err(1, "in malloc");
+				rc = efs_get_blocks(ctx, dirblks, ex.ex_bn, ex.ex_length);
+				if (rc != EFS_ERR_OK) errefs(1, ctx->err, "while reading dirblks");
+				for (unsigned dirblknum = 0; dirblknum < ex.ex_length; dirblknum++) {
+					struct efs_dirblk_s *dirblk;
+					dirblk = &dirblks[dirblknum];
+					if (be16toh(dirblk->magic) != EFS_DIRBLK_MAGIC) {
+						errx(1, "bad dirblk magic");
+					}
+					for (int slot = 0; slot < dirblk->slots; slot++) {
+						char name[EFS_MAXNAMELEN + 1] = {0,};
+						off_t slotOffset = dirblk->space[slot] << 1;
+						struct efs_dent_s *dent = (struct efs_dent_s *)((uint8_t *)dirblk + slotOffset);
+						memcpy(name, dent->d_name, dent->d_namelen);
+						name[dent->d_namelen] = '\0';
+						//printf("slot %3d: %8xh '%s'\n", slot, be32toh(dent->l), name);
+						if (!strcmp(".", name) || !strcmp("..", name)) {
+							//printf("skipping '%s'\n", name);
+						} else {
+							queue_enqueue(be32toh(dent->l), qe->path, name);
+						}
+					}
 				}
-				//printf("dir firstused: %x\n", dirblk->firstused);
-				//printf("dir slots: %x\n", dirblk->slots);
-				for (int slot = 2; slot < dirblk->slots; slot++) {
-					char name[EFS_MAXNAMELEN + 1] = {0,};
-					off_t slotOffset = dirblk->space[slot] * 2;
-					struct efs_dent_s *dent = (struct efs_dent_s *)((uint8_t *)dirblk + slotOffset);
-					memcpy(name, dent->d_name, dent->d_namelen);
-					name[dent->d_namelen] = '\0';
-					//printf("slot %3d: %8xh '%s'\n", slot, be32toh(dent->l), name);
-					struct efs_extent_s ex;
-					ex.ex_magic = 0;
-					ex.ex_bn = be32toh(dent->l);
-					ex.ex_length = 1;
-					ex.ex_offset = 0;
-					queue_add(ex, qe->path, name);
-				}
-
 			}
 			break;
 		case IFREG:
-			printf("reg: '%s'\n", qe->path);
+			if (!lflag) {
+				FILE *out = fopen(qe->path, "w");
+				if (!out) warn("couldn't create file '%s'", qe->path);
+				fclose(out);
+			}
 			break;
 		case IFIFO:
-			printf("fifo: '%s'\n", qe->path);
+			if (!lflag) {
+				rc = mkfifo(qe->path, inode.di_mode & 0777);
+				if (rc == -1) warn("couldn't create fifo '%s'", qe->path);
+			}
 			break;
 		case IFCHR:
-			printf("chr: '%s'\n", qe->path);
-			break;
 		case IFBLK:
-			printf("blk: '%s'\n", qe->path);
+			if (!lflag) {
+				dev_t dev;
+				mode_t mode;
+				unsigned int major, minor;
+
+				mode = inode.di_mode & 0777;
+				if (filetype == IFCHR) {
+					mode |= S_IFCHR;
+				} else if (filetype == IFBLK) {
+					mode |= S_IFBLK;
+				}
+
+				if (inode.di_u.di_dev.ndev != 0) {
+					// use new
+					major = (inode.di_u.di_dev.ndev & 0xFFFF0000) >> 16;
+					minor = inode.di_u.di_dev.ndev & 0x0000FFFF;
+				} else {
+					// use old
+					major = (inode.di_u.di_dev.odev & 0xFF00) >> 8;
+					minor = inode.di_u.di_dev.odev & 0x00FF;
+				}
+				dev = makedev(major, minor);
+
+				rc = mknod(qe->path, mode, dev);
+				if (rc == -1) warn("couldn't create node '%s'", qe->path);
+			}
 			break;
 		case IFLNK:
-			printf("lnk: '%s'\n", qe->path);
+			if (!lflag) {
+				char namebuf[EFS_MAXNAMELEN + 1];
+				efs_err_t erc;
+				char *buf;
+				struct efs_extent_s ex;
+
+				ex = inode.di_u.di_extents[0];
+
+				buf = calloc(BLKSIZ, ex.ex_length);
+				if (!buf) err(1, "in calloc");
+
+				erc = efs_get_blocks(ctx, buf, ex.ex_bn, ex.ex_length);
+				if (erc != EFS_ERR_OK) errefs(1, erc, "couldn't read blocks");
+
+				memcpy(namebuf, buf, inode.di_size);
+				namebuf[inode.di_size] = '\0';
+
+				rc = symlink(namebuf, qe->path);
+				if (rc == -1) warn("couldn't create symlink '%s'", qe->path);
+				free(buf);
+			}
 			break;
 		case IFSOCK:
-			printf("sock: '%s'\n", qe->path);
+			warnx("sockets not supported");
 			break;
 		default:
-			printf("weird file type\n");
+			errx(1, "weird file type");
 			break;
 		}
+		if (Pflag && strlen(qe->path)) {
+			rc = chmod(qe->path, inode.di_mode & 0777);
+			if (rc == -1) err(1, "couldn't set permissions on '%s'\n", qe->path);
+		}
 		free(qe->path);
-		//print_queue();
 	}
 
 	efs_close(ctx);
@@ -202,7 +317,7 @@ int main(int argc, char *argv[])
 
 noreturn static void usage(void)
 {
-	(void)fprintf(stderr, "usage: %s -f file\n",
+	(void)fprintf(stderr, "usage: %s [-lPq] [-p #] file\n",
 		__progname
 	);
 	exit(EXIT_FAILURE);

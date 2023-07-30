@@ -37,6 +37,8 @@
 #define ISGID	02000
 #define ISVTX	01000
 
+typedef uint32_t efs_ino_t;
+
 struct efs_sb_s {
 	int32_t fs_size;
 	int32_t fs_firstcg;
@@ -205,6 +207,8 @@ typedef struct efx_ctx_s {
 	FILE *f;
 	fileslice_t *fs;
 	struct efs_sb_s sb;
+	size_t nblks;
+	efs_ino_t ipcg;
 } efs_ctx_t;
 
 extern const char *efs_strerror(efs_err_t e);
@@ -214,6 +218,6 @@ extern void warnefs(efs_err_t e, const char *fmt, ...);
 extern noreturn void errefs(int eval, efs_err_t e, const char *fmt, ...);
 
 extern efs_err_t efs_get_blocks(efs_ctx_t *ctx, void *buf, size_t firstlbn, size_t nblks);
-extern efs_err_t efs_open(efs_ctx_t **ctx, char *filename);
+extern efs_err_t efs_open(efs_ctx_t **ctx, char *filename, int parnum);
 extern void efs_close(efs_ctx_t *ctx);
 extern struct efs_dinode_s efs_get_inode(efs_ctx_t *ctx, unsigned ino);

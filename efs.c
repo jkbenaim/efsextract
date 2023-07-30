@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <err.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -138,12 +139,20 @@ struct efs_dinode_s efs_dinodetoh(struct efs_dinode_s inode)
 
 	if (out.di_numextents > EFS_DIRECTEXTENTS) return out;
 
-	/* TODO */
-	for (i = 0; i < out.di_numextents; i++) {
-		out.di_u.di_extents[i].ex_magic = inode.di_u.di_extents[i].ex_magic;
-		out.di_u.di_extents[i].ex_bn = be24toh(inode.di_u.di_extents[i].ex_bn);
-		out.di_u.di_extents[i].ex_length = inode.di_u.di_extents[i].ex_length;
-		out.di_u.di_extents[i].ex_offset = be24toh(inode.di_u.di_extents[i].ex_offset);
+	switch (out.di_mode & IFMT) {
+	case IFCHR:
+	case IFBLK:
+		out.di_u.di_dev.ndev = be32toh(inode.di_u.di_dev.ndev);
+		out.di_u.di_dev.odev = be16toh(inode.di_u.di_dev.odev);
+		break;
+	default:
+		for (i = 0; i < out.di_numextents; i++) {
+			out.di_u.di_extents[i].ex_magic = inode.di_u.di_extents[i].ex_magic;
+			out.di_u.di_extents[i].ex_bn = be24toh(inode.di_u.di_extents[i].ex_bn);
+			out.di_u.di_extents[i].ex_length = inode.di_u.di_extents[i].ex_length;
+			out.di_u.di_extents[i].ex_offset = be24toh(inode.di_u.di_extents[i].ex_offset);
+		}
+		break;
 	}
 
 	return out;
@@ -226,6 +235,7 @@ fileslice_t *efs_get_slice_for_par(efs_ctx_t *ctx, int parNum)
 	if (rc != 1) goto out_error;
 
 	pt = dvh_getPar(&dvh, parNum);
+	ctx->nblks = pt.pt_nblks;
 	if (pt.pt_nblks == 0) goto out_error;
 	//printf("pt.pt_nblks = %u\n", pt.pt_nblks);
 	//printf("pt.pt_firstlbn = %u\n", pt.pt_firstlbn);
@@ -237,13 +247,31 @@ out_error:
 	return NULL;
 }
 
+//#define USE_CACHE 1
+#if USE_CACHE
+#define NUMCACHEBLOCKS (11)
+uint8_t blocks[NUMCACHEBLOCKS][BLKSIZ];
+long blockstat[NUMCACHEBLOCKS];
+int blocknext;
+#endif
+
 efs_err_t efs_get_blocks(efs_ctx_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 {
-	__label__ out_error;
+	__label__ out_error, out_ok;
 	int rc;
 	efs_err_t erc;
 
-	//printf("getting blocks %lu:%lu\n", firstlbn, nblks);
+#if USE_CACHE
+	if (nblks == 1) {
+		// for 1-block reads, we cache blocks
+		for (size_t i = 0; i < NUMCACHEBLOCKS; i++) {
+			if (blockstat[i] == firstlbn) {
+				memcpy(buf, blocks[i], BLKSIZ);
+				goto out_ok;
+			}
+		}
+	}
+#endif
 
 	rc = fsseek(ctx->fs, BLKSIZ * firstlbn, SEEK_SET);
 	if (rc == -1) {
@@ -258,17 +286,35 @@ efs_err_t efs_get_blocks(efs_ctx_t *ctx, void *buf, size_t firstlbn, size_t nblk
 		goto out_error;
 	}
 
+#if USE_CACHE
+	if (nblks == 1) {
+		memcpy(blocks[blocknext], buf, BLKSIZ);
+		blockstat[blocknext] = firstlbn;
+		blocknext++;
+		if (blocknext == NUMCACHEBLOCKS)
+			blocknext = 0;
+	}
+#endif
+
+out_ok:
 	return EFS_ERR_OK;
 out_error:
 	return erc;
 }
 
-efs_err_t efs_open(efs_ctx_t **ctx, char *filename)
+efs_err_t efs_open(efs_ctx_t **ctx, char *filename, int parnum)
 {
 	__label__ out_error;
 	efs_err_t erc;
 	int rc;
 	struct dvh_s dvh;
+
+#if USE_CACHE
+	for (size_t i = 0; i < NUMCACHEBLOCKS; i++) {
+		blockstat[i] = -1;
+	}
+	blocknext = 0;
+#endif
 
 	*ctx = calloc(1, sizeof(efs_ctx_t));
 	if (!*ctx) {
@@ -290,8 +336,8 @@ efs_err_t efs_open(efs_ctx_t **ctx, char *filename)
 		goto out_error;
 	}
 
-	/* Open par7 slice */
-	(*ctx)->fs = efs_get_slice_for_par(*ctx, 7);
+	/* Open par slice */
+	(*ctx)->fs = efs_get_slice_for_par(*ctx, parnum);
 	if (!((*ctx)->fs)) {
 		erc = EFS_ERR_NOPAR;
 		goto out_error;
@@ -305,6 +351,23 @@ efs_err_t efs_open(efs_ctx_t **ctx, char *filename)
 	}
 	(*ctx)->sb = efstoh((*ctx)->sb);
 
+
+/*
+	mkfs_efs: /dev/dsk/dks0d5s7: blocks=486400 inodes=49856
+	mkfs_efs: /dev/dsk/dks0d5s7: sectors=64 cgfsize=25593
+	mkfs_efs: /dev/dsk/dks0d5s7: cgalign=1 ialign=1 ncg=19
+	mkfs_efs: /dev/dsk/dks0d5s7: firstcg=121 cgisize=656
+	mkfs_efs: /dev/dsk/dks0d5s7: bitmap blocks=119
+*/
+#if 0
+	struct efs_sb_s *sb = &(*ctx)->sb;
+	printf("blocks=%lu inodes=%u\n", (*ctx)->nblks, sb->fs_ncg * sb->fs_cgisize * 4);
+	printf("sectors=%u cgfsize=%u\n", sb->fs_sectors, sb->fs_cgfsize);
+	printf("cgalign=? ialign=? ncg=%u\n", sb->fs_ncg);
+	printf("firstcg=%u cgisize=%u\n", sb->fs_firstcg, sb->fs_cgisize);
+	printf("bitmap blocks=%u\n", (sb->fs_bmsize + BLKSIZ - 1)/ BLKSIZ);
+#endif
+	
 	return (*ctx)->err = EFS_ERR_OK;
 out_error:
 	if (*ctx) free(*ctx);
@@ -320,18 +383,39 @@ void efs_close(efs_ctx_t *ctx)
 	free(ctx);
 }
 
+struct efs_ino_inf_s {
+	size_t bb;
+	unsigned slot;
+};
+
+size_t itobb(efs_ctx_t *ctx, efs_ino_t ino)
+{
+	return EFS_ITOBB(&ctx->sb, ino);
+}
+
+struct efs_ino_inf_s efs_get_inode_info(efs_ctx_t *ctx, efs_ino_t ino)
+{
+	struct efs_ino_inf_s out = {0,};
+
+	out.bb = ctx->sb.fs_firstcg;
+
+	out.bb = itobb(ctx, ino);
+	out.slot = ino & EFS_INOPBBMASK;
+
+	return out;
+}
+
 struct efs_dinode_s efs_get_inode(efs_ctx_t *ctx, unsigned ino)
 {
-	unsigned bb;
-	unsigned off;
 	struct efs_dinode_s inodes[4];
 
 	//printf("--> read inode %u\n", ino);
 
-	bb = EFS_ITOBB(&ctx->sb, ino);
-	off = EFS_ITOO(&ctx->sb, ino);
-	efs_get_blocks(ctx, &inodes, bb, 1);
-	inodes[off] = efs_dinodetoh(inodes[off]);
+
+	struct efs_ino_inf_s info;
+	info = efs_get_inode_info(ctx, ino);
+	efs_get_blocks(ctx, &inodes, info.bb, 1);
+	inodes[info.slot] = efs_dinodetoh(inodes[info.slot]);
 	//hexdump(&inodes[off], sizeof(*inodes));
-	return inodes[off];
+	return inodes[info.slot];
 }

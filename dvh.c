@@ -13,6 +13,7 @@ struct dvh_pt_s dvh_getPar(struct dvh_s *dvh, int parNum)
 		return pt;
 
 	if (parNum >= NPARTAB) return pt;
+	if (parNum < 0) return pt;
 
 	pt.pt_nblks = be32toh(dvh->vh_pt[parNum].pt_nblks);
 	pt.pt_firstlbn = be32toh(dvh->vh_pt[parNum].pt_firstlbn);
