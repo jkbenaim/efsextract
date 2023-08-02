@@ -8,7 +8,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+
+#ifndef __APPLE__
 #include <sys/sysmacros.h>
+#endif
 
 #include "efs.h"
 #include "endian.h"
@@ -333,6 +336,7 @@ int main(int argc, char *argv[])
 			break;
 		case IFCHR:
 		case IFBLK:
+#ifndef __APPLE__
 			if (!lflag) {
 				dev_t dev;
 				mode_t mode;
@@ -359,6 +363,7 @@ int main(int argc, char *argv[])
 				rc = mknod(qe->path, mode, dev);
 				if (rc == -1) warn("couldn't create node '%s'", qe->path);
 			}
+#endif
 			break;
 		case IFLNK:
 			if (!lflag) {
