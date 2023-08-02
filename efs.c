@@ -107,23 +107,27 @@ struct efs_extent_s {
 } __attribute__((packed));
 */
 
-uint32_t be24toh(uint32_t x)
-{
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-	return be32toh(x<<8);
-#else
-	return x & 0x00ffffff;
-#endif
-}
-
 struct efs_extent_s efs_extenttoh(struct efs_extent_s extent)
 {
+#if __BYTE_ORDER == __BIG_ENDIAN
+	return extent;
+#else
 	struct efs_extent_s out;
-	out.ex_magic = extent.ex_magic;
-	out.ex_bn = be24toh(extent.ex_bn);
-	out.ex_length = extent.ex_length;
-	out.ex_offset = be24toh(extent.ex_offset);
+	uint8_t inbuf[8], outbuf[8];
+	memcpy(&inbuf, &extent, sizeof(inbuf));
+
+	outbuf[0] = inbuf[0];
+	outbuf[1] = inbuf[3];
+	outbuf[2] = inbuf[2];
+	outbuf[3] = inbuf[1];
+	outbuf[4] = inbuf[4];
+	outbuf[5] = inbuf[7];
+	outbuf[6] = inbuf[6];
+	outbuf[7] = inbuf[5];
+
+	memcpy(&out, outbuf, sizeof(outbuf));
 	return out;
+#endif
 }
 
 struct efs_dinode_s efs_dinodetoh(struct efs_dinode_s inode)
@@ -290,6 +294,7 @@ efs_err_t efs_get_blocks(efs_ctx_t *ctx, void *buf, size_t firstlbn, size_t nblk
 			blocknext = 0;
 	}
 #endif
+	goto out_ok;
 
 out_ok:
 	return EFS_ERR_OK;

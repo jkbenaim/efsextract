@@ -74,7 +74,6 @@ struct qent_s *queue_dequeue(void)
 struct qent_s *queue_dequeue_lowest(void)
 {
 	struct qent_s *out = head;
-	static size_t count = 0;
 	
 	if (!out) return NULL;
 
@@ -100,6 +99,7 @@ struct qent_s *queue_dequeue_lowest(void)
 	return out;
 }
 
+/*
 void print_ex(struct efs_extent_s ext)
 {
 	printf("%u %u %u %u\n",
@@ -109,6 +109,7 @@ void print_ex(struct efs_extent_s ext)
 		ext.ex_offset
 	);
 }
+*/
 
 void print_queue(void)
 {
@@ -191,6 +192,7 @@ int main(int argc, char *argv[])
 				if (*ptr)
 					errx(1, "bad partition number '%s'", optarg);
 			}
+			break;
 		case 'P':
 			if (Pflag != 0)
 				usage();
@@ -243,7 +245,7 @@ int main(int argc, char *argv[])
 		case IFDIR:
 			if (!lflag && strlen(qe->path)) {
 				rc = mkdir(qe->path, 0755);
-				if (rc == -1) err(1, "couldn't make directory '%s'", qe->path);
+				//if (rc == -1) err(1, "couldn't make directory '%s'", qe->path);
 			}
 			for (unsigned exnum = 0; exnum < inode.di_numextents; exnum++) {
 				struct efs_dirblk_s *dirblks;
