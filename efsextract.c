@@ -21,19 +21,19 @@
 extern char *__progname;
 noreturn static void usage(void);
 
-struct qent_s {
-	struct qent_s *next;
-	struct qent_s *prev;
+struct qent {
+	struct qent *next;
+	struct qent *prev;
 	char *path;
 	efs_ino_t ino;
 };
-struct qent_s *head = NULL;
-struct qent_s *tail = NULL;
+struct qent *head = NULL;
+struct qent *tail = NULL;
 
 /* add to tail of queue */
 int queue_enqueue(efs_ino_t ino, char *path, char *name)
 {
-	struct qent_s *q;
+	struct qent *q;
 	int rc;
 	q = calloc(1, sizeof(*q));
 	if (!q) err(1, "in malloc");
@@ -58,9 +58,9 @@ int queue_enqueue(efs_ino_t ino, char *path, char *name)
 	return 0;
 }
 
-struct qent_s *queue_dequeue(void)
+struct qent *queue_dequeue(void)
 {
-	struct qent_s *out;
+	struct qent *out;
 	out = head;
 
 	if (head) {
@@ -74,13 +74,13 @@ struct qent_s *queue_dequeue(void)
 	return out;
 }
 
-struct qent_s *queue_dequeue_lowest(void)
+struct qent *queue_dequeue_lowest(void)
 {
-	struct qent_s *out = head;
+	struct qent *out = head;
 	
 	if (!out) return NULL;
 
-	for (struct qent_s *cur = head; cur; cur = cur->next) {
+	for (struct qent *cur = head; cur; cur = cur->next) {
 		if (cur->ino < out->ino)
 			out = cur;
 	}
@@ -103,7 +103,7 @@ struct qent_s *queue_dequeue_lowest(void)
 }
 
 /*
-void print_ex(struct efs_extent_s ext)
+void print_ex(struct efs_extent ext)
 {
 	printf("%u %u %u %u\n",
 		ext.ex_magic,
@@ -117,13 +117,13 @@ void print_ex(struct efs_extent_s ext)
 void print_queue(void)
 {
 	printf("head\n");
-	for (struct qent_s *q = head; q; q=q->next) {
+	for (struct qent *q = head; q; q=q->next) {
 		printf("%s\n", q->path);
 	}
 	printf("tail\n");
 }
 
-int write_extent(efs_t *ctx, FILE *outf, struct efs_extent_s ex, size_t nbytes)
+int write_extent(efs_t *ctx, FILE *outf, struct efs_extent ex, size_t nbytes)
 {
 	size_t rc;
 	efs_err_t erc;
@@ -146,13 +146,13 @@ int write_extent(efs_t *ctx, FILE *outf, struct efs_extent_s ex, size_t nbytes)
 	return 0;
 }
 
-size_t write_extents(efs_t *ctx, FILE *outf, struct efs_extent_s *exs, size_t nex, size_t filesize)
+size_t write_extents(efs_t *ctx, FILE *outf, struct efs_extent *exs, size_t nex, size_t filesize)
 {
 	size_t bytes_left = filesize;
 
 	for (unsigned exnum = 0; (exnum < nex) && bytes_left; exnum++) {
 		size_t nbytes;
-		struct efs_extent_s ex;
+		struct efs_extent ex;
 		ex = exs[exnum];
 		if (ex.ex_length > EFS_MAXEXTENTLEN)
 			errx(1, "bad extent length");
@@ -231,11 +231,11 @@ int main(int argc, char *argv[])
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "while reading blocks");
 
-	struct efs_dinode_s inode;
+	struct efs_dinode inode;
 
 	queue_enqueue(2, "", "");
 
-	for (struct qent_s *qe = queue_dequeue_lowest(); qe; free(qe),qe = queue_dequeue_lowest()) {
+	for (struct qent *qe = queue_dequeue_lowest(); qe; free(qe),qe = queue_dequeue_lowest()) {
 		inode = efs_get_inode(ctx, qe->ino);
 		if (inode.di_version) {
 			errx(1, "bad inode version %u\n", inode.di_version);
@@ -251,15 +251,15 @@ int main(int argc, char *argv[])
 				//if (rc == -1) err(1, "couldn't make directory '%s'", qe->path);
 			}
 			for (unsigned exnum = 0; exnum < inode.di_numextents; exnum++) {
-				struct efs_dirblk_s *dirblks;
-				struct efs_extent_s ex;
+				struct efs_dirblk *dirblks;
+				struct efs_extent ex;
 				ex = inode.di_u.di_extents[exnum];
 				dirblks = calloc(ex.ex_length, BLKSIZ);
 				if (!dirblks) err(1, "in malloc");
 				rc = efs_get_blocks(ctx, dirblks, ex.ex_bn, ex.ex_length);
 				if (rc != EFS_ERR_OK) errefs(1, ctx->err, "while reading dirblks");
 				for (unsigned dirblknum = 0; dirblknum < ex.ex_length; dirblknum++) {
-					struct efs_dirblk_s *dirblk;
+					struct efs_dirblk *dirblk;
 					dirblk = &dirblks[dirblknum];
 					if (be16toh(dirblk->magic) != EFS_DIRBLK_MAGIC) {
 						errx(1, "bad dirblk magic");
@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
 					for (int slot = 0; slot < dirblk->slots; slot++) {
 						char name[EFS_MAX_NAME + 1] = {0,};
 						off_t slotOffset = dirblk->space[slot] << 1;
-						struct efs_dent_s *dent = (struct efs_dent_s *)((uint8_t *)dirblk + slotOffset);
+						struct efs_dent *dent = (struct efs_dent *)((uint8_t *)dirblk + slotOffset);
 						memcpy(name, dent->d_name, dent->d_namelen);
 						name[dent->d_namelen] = '\0';
 						//printf("slot %3d: %8xh '%s'\n", slot, be32toh(dent->l), name);
@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
 				if (inode.di_numextents > EFS_DIRECTEXTENTS) {
 					efs_err_t erc;
 					struct efs_extent_ex;
-					struct efs_extent_s *buf;
+					struct efs_extent *buf;
 					unsigned num_indirect;
 
 					num_indirect = inode.di_u.di_extents[0].ex_offset;
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
 					if (!buf) err(1, "in malloc");
 
 					for (unsigned exnum = 0; exnum < num_indirect; exnum++) {
-						struct efs_extent_s ex;
+						struct efs_extent ex;
 						size_t numextents;
 						ex = inode.di_u.di_extents[exnum];
 						erc = efs_get_blocks(ctx, buf, ex.ex_bn, ex.ex_length);
@@ -370,7 +370,7 @@ int main(int argc, char *argv[])
 				char namebuf[EFS_MAX_NAME + 1];
 				efs_err_t erc;
 				char *buf;
-				struct efs_extent_s ex;
+				struct efs_extent ex;
 
 				ex = inode.di_u.di_extents[0];
 

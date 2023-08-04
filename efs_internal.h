@@ -40,7 +40,7 @@
 
 typedef uint32_t efs_ino_t;
 
-struct efs_sb_s {
+struct efs_sb {
 	int32_t fs_size;
 	int32_t fs_firstcg;
 	int32_t fs_cgfsize;
@@ -67,19 +67,19 @@ struct efs_sb_s {
 	char __pad2[BLKSIZ-92];
 } __attribute__((packed));
 
-struct efs_extent_s {
+struct efs_extent {
 	uint32_t ex_magic:8,
 		 ex_bn:24,
 		 ex_length:8,
 		 ex_offset:24;
 } __attribute__((packed));
 
-struct efs_edevs_s {
+struct efs_edevs {
 	uint16_t odev;
 	uint32_t ndev;
 } __attribute__((packed));
 
-struct efs_dinode_s {
+struct efs_dinode {
 	uint16_t di_mode;
 	int16_t  di_nlink;
 	uint16_t di_uid;
@@ -93,12 +93,12 @@ struct efs_dinode_s {
 	uint8_t  di_version;
 	uint8_t  di_spare;
 	union di_addr {
-		struct efs_extent_s di_extents[EFS_DIRECTEXTENTS];
-		struct efs_edevs_s  di_dev;
+		struct efs_extent di_extents[EFS_DIRECTEXTENTS];
+		struct efs_edevs  di_dev;
 	} di_u;
 } __attribute__((packed));
 
-struct efs_dent_s {
+struct efs_dent {
 	uint32_t l;
 	uint8_t d_namelen;
 	char d_name[];
@@ -108,13 +108,13 @@ struct efs_dent_s {
 #define EFS_DIRBSIZE	(1<<EFS_DIRBSHIFT)
 #define EFS_DIRBMASK	(EFS_DIRBSIZE-1)
 
-#define EFS_DENTSIZE	(sizeof(struct efs_dent_s) - 3 + 1)
+#define EFS_DENTSIZE	(sizeof(struct efs_dent) - 3 + 1)
 #define EFS_MAX_NAME	255
 #define EFS_DIRBLK_HEADERSIZE	4
 
 #define EFS_DIRBLK_MAGIC	0xbeef
 
-struct efs_dirblk_s {
+struct efs_dirblk {
 	uint16_t magic;
 	uint8_t  firstused;
 	uint8_t  slots;
@@ -190,9 +190,9 @@ struct efs_dirblk_s {
 	(((((inum) - (cg)->cg_firsti) / (fs)->fs_inopchunk) * \
 	  (fs)->fs_inopchunk) + (cg)->cg_firsti)
 
-struct efs_sb_s efstoh (struct efs_sb_s efs);
-struct efs_dinode_s efs_dinodetoh(struct efs_dinode_s inode);
-struct efs_extent_s efs_extenttoh(struct efs_extent_s extent);
+struct efs_sb efstoh (struct efs_sb efs);
+struct efs_dinode efs_dinodetoh(struct efs_dinode inode);
+struct efs_extent efs_extenttoh(struct efs_extent extent);
 
 typedef enum {
 	EFS_ERR_OK = 0,
@@ -203,11 +203,11 @@ typedef enum {
 	EFS_ERR_NOPAR,
 } efs_err_t;
 
-typedef struct efx_ctx_s {
+typedef struct efx_ctx {
 	efs_err_t err;
 	FILE *f;
 	fileslice_t *fs;
-	struct efs_sb_s sb;
+	struct efs_sb sb;
 	size_t nblks;
 	efs_ino_t ipcg;
 } efs_t;
@@ -221,4 +221,5 @@ extern noreturn void errefs(int eval, efs_err_t e, const char *fmt, ...);
 extern efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks);
 extern efs_err_t efs_open(efs_t **ctx, char *filename, int parnum);
 extern void efs_close(efs_t *ctx);
-extern struct efs_dinode_s efs_get_inode(efs_t *ctx, unsigned ino);
+extern struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino);
+

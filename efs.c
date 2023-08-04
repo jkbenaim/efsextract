@@ -38,9 +38,9 @@ struct efs_s {
 } __attribute__((packed));
 */
 
-struct efs_sb_s efstoh (struct efs_sb_s efs)
+struct efs_sb efstoh (struct efs_sb efs)
 {
-	struct efs_sb_s out = {0,};
+	struct efs_sb out = {0,};
 
 	out.fs_size = be32toh(efs.fs_size);
 	out.fs_firstcg = be32toh(efs.fs_firstcg);
@@ -108,12 +108,12 @@ struct efs_extent_s {
 } __attribute__((packed));
 */
 
-struct efs_extent_s efs_extenttoh(struct efs_extent_s extent)
+struct efs_extent efs_extenttoh(struct efs_extent extent)
 {
 #if __BYTE_ORDER == __BIG_ENDIAN
 	return extent;
 #else
-	struct efs_extent_s out;
+	struct efs_extent out;
 	uint8_t inbuf[8], outbuf[8];
 	memcpy(&inbuf, &extent, sizeof(inbuf));
 
@@ -131,10 +131,10 @@ struct efs_extent_s efs_extenttoh(struct efs_extent_s extent)
 #endif
 }
 
-struct efs_dinode_s efs_dinodetoh(struct efs_dinode_s inode)
+struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
 {
 	size_t i;
-	struct efs_dinode_s out = {0,};
+	struct efs_dinode out = {0,};
 
 	out.di_mode = be16toh(inode.di_mode);
 	out.di_nlink = be16toh(inode.di_nlink);
@@ -406,9 +406,9 @@ struct efs_ino_inf_s efs_get_inode_info(efs_t *ctx, efs_ino_t ino)
 	return out;
 }
 
-struct efs_dinode_s efs_get_inode(efs_t *ctx, unsigned ino)
+struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino)
 {
-	struct efs_dinode_s inodes[4];
+	struct efs_dinode inodes[4];
 
 	//printf("--> read inode %u\n", ino);
 
@@ -419,6 +419,12 @@ struct efs_dinode_s efs_get_inode(efs_t *ctx, unsigned ino)
 	inodes[info.slot] = efs_dinodetoh(inodes[info.slot]);
 	//hexdump(&inodes[off], sizeof(*inodes));
 	return inodes[info.slot];
+}
+
+efs_ino_t efs_find_entry(efs_t *efs, const char *name)
+{
+	/* TODO */
+	return 2;
 }
 
 /*
@@ -437,7 +443,7 @@ int efs_closedir(efs_dir_t *dirp)
 	return 0;
 }
 
-struct efs_dirent_s *efs_readdir(efs_dir_t *dirp)
+struct efs_dirent *efs_readdir(efs_dir_t *dirp)
 {
 	/* TODO */
 	return NULL;
