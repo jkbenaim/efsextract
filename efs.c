@@ -6,6 +6,7 @@
 #include <string.h>
 #include "dvh.h"
 #include "efs.h"
+#include "efs_internal.h"
 #include "endian.h"
 
 extern char *__progname;
@@ -219,7 +220,7 @@ noreturn void errefs(int eval, efs_err_t e, const char *fmt, ...)
 	va_end(ap);
 }
 
-fileslice_t *efs_get_slice_for_par(efs_ctx_t *ctx, int parNum)
+fileslice_t *efs_get_slice_for_par(efs_t *ctx, int parNum)
 {
 	__label__ out_error;
 	int rc;
@@ -254,7 +255,7 @@ long blockstat[NUMCACHEBLOCKS];
 int blocknext;
 #endif
 
-efs_err_t efs_get_blocks(efs_ctx_t *ctx, void *buf, size_t firstlbn, size_t nblks)
+efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 {
 	__label__ out_error, out_ok;
 	int rc;
@@ -302,7 +303,7 @@ out_error:
 	return erc;
 }
 
-efs_err_t efs_open(efs_ctx_t **ctx, char *filename, int parnum)
+efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
 {
 	__label__ out_error;
 	efs_err_t erc;
@@ -316,7 +317,7 @@ efs_err_t efs_open(efs_ctx_t **ctx, char *filename, int parnum)
 	blocknext = 0;
 #endif
 
-	*ctx = calloc(1, sizeof(efs_ctx_t));
+	*ctx = calloc(1, sizeof(efs_t));
 	if (!*ctx) {
 		erc = EFS_ERR_NOMEM;
 		goto out_error;
@@ -375,7 +376,7 @@ out_error:
 	return erc;
 }
 
-void efs_close(efs_ctx_t *ctx)
+void efs_close(efs_t *ctx)
 {
 	if (!ctx) return;
 	fsclose(ctx->fs);
@@ -388,12 +389,12 @@ struct efs_ino_inf_s {
 	unsigned slot;
 };
 
-size_t itobb(efs_ctx_t *ctx, efs_ino_t ino)
+size_t itobb(efs_t *ctx, efs_ino_t ino)
 {
 	return EFS_ITOBB(&ctx->sb, ino);
 }
 
-struct efs_ino_inf_s efs_get_inode_info(efs_ctx_t *ctx, efs_ino_t ino)
+struct efs_ino_inf_s efs_get_inode_info(efs_t *ctx, efs_ino_t ino)
 {
 	struct efs_ino_inf_s out = {0,};
 
@@ -405,7 +406,7 @@ struct efs_ino_inf_s efs_get_inode_info(efs_ctx_t *ctx, efs_ino_t ino)
 	return out;
 }
 
-struct efs_dinode_s efs_get_inode(efs_ctx_t *ctx, unsigned ino)
+struct efs_dinode_s efs_get_inode(efs_t *ctx, unsigned ino)
 {
 	struct efs_dinode_s inodes[4];
 
@@ -418,4 +419,31 @@ struct efs_dinode_s efs_get_inode(efs_ctx_t *ctx, unsigned ino)
 	inodes[info.slot] = efs_dinodetoh(inodes[info.slot]);
 	//hexdump(&inodes[off], sizeof(*inodes));
 	return inodes[info.slot];
+}
+
+/*
+ * Directory functions.
+ */
+
+efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
+{
+	/* TODO */
+	return NULL;
+}
+
+int efs_closedir(efs_dir_t *dirp)
+{
+	/* TODO */
+	return 0;
+}
+
+struct efs_dirent_s *efs_readdir(efs_dir_t *dirp)
+{
+	/* TODO */
+	return NULL;
+}
+
+void efs_rewinddir(efs_dir_t *dirp)
+{
+	/* TODO */
 }

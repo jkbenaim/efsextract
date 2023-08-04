@@ -13,7 +13,7 @@
 #include <sys/sysmacros.h>
 #endif
 
-#include "efs.h"
+#include "efs_internal.h"
 #include "endian.h"
 #include "hexdump.h"
 #include "noreturn.h"
@@ -123,7 +123,7 @@ void print_queue(void)
 	printf("tail\n");
 }
 
-int write_extent(efs_ctx_t *ctx, FILE *outf, struct efs_extent_s ex, size_t nbytes)
+int write_extent(efs_t *ctx, FILE *outf, struct efs_extent_s ex, size_t nbytes)
 {
 	size_t rc;
 	efs_err_t erc;
@@ -146,7 +146,7 @@ int write_extent(efs_ctx_t *ctx, FILE *outf, struct efs_extent_s ex, size_t nbyt
 	return 0;
 }
 
-size_t write_extents(efs_ctx_t *ctx, FILE *outf, struct efs_extent_s *exs, size_t nex, size_t filesize)
+size_t write_extents(efs_t *ctx, FILE *outf, struct efs_extent_s *exs, size_t nex, size_t filesize)
 {
 	size_t bytes_left = filesize;
 
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 	if (Pflag && lflag)
 		errx(1, "cannot combine P and l flags");
 	
-	efs_ctx_t *ctx = NULL;
+	efs_t *ctx = NULL;
 	efs_err_t erc;
 	erc = efs_open(&ctx, filename, parnum);
 	if (erc != EFS_ERR_OK)
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
 						errx(1, "bad dirblk magic");
 					}
 					for (int slot = 0; slot < dirblk->slots; slot++) {
-						char name[EFS_MAXNAMELEN + 1] = {0,};
+						char name[EFS_MAX_NAME + 1] = {0,};
 						off_t slotOffset = dirblk->space[slot] << 1;
 						struct efs_dent_s *dent = (struct efs_dent_s *)((uint8_t *)dirblk + slotOffset);
 						memcpy(name, dent->d_name, dent->d_namelen);
@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
 			break;
 		case IFLNK:
 			if (!lflag) {
-				char namebuf[EFS_MAXNAMELEN + 1];
+				char namebuf[EFS_MAX_NAME + 1];
 				efs_err_t erc;
 				char *buf;
 				struct efs_extent_s ex;

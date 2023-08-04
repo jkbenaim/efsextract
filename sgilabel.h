@@ -10,4 +10,4 @@ struct sgilabel_s {
         uint8_t pas2[84];       /* 0x00121053 */
         uint32_t magic2;
         char fxid[64];
-} __attribute__((pakced));
+} __attribute__((packed));
