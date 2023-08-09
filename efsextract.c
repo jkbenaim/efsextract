@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <err.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <iso646.h>
 #include <stdbool.h>
@@ -236,6 +237,7 @@ int main(int argc, char *argv[])
 	queue_enqueue(2, "", "");
 
 	for (struct qent *qe = queue_dequeue_lowest(); qe; free(qe),qe = queue_dequeue_lowest()) {
+		__label__ nextfile;
 		inode = efs_get_inode(ctx, qe->ino);
 		if (inode.di_version) {
 			errx(1, "bad inode version %u\n", inode.di_version);
@@ -288,9 +290,26 @@ int main(int argc, char *argv[])
 
 				buf = malloc(BLKSIZ * bufsiz);
 				if (!buf) err(1, "in malloc");
+				
+				/*
+				 * Check if our destination file exists
+				 * as a symlink, and if so, remove it.
+				 */
+				struct stat sb = {0,};
+				rc = lstat(qe->path, &sb);
+				if ((rc == -1) && (errno != ENOENT)) {
+					err(1, "couldn't stat output path '%s'", qe->path);
+				} else if (((sb.st_mode) & S_IFMT) == S_IFLNK) {
+					rc = unlink(qe->path);
+					if (rc == -1)
+						err(1, "couldn't remove '%s'", qe->path);
+				}
 
 				FILE *outf = fopen(qe->path, "w");
-				if (!outf) warn("couldn't create file '%s'", qe->path);
+				if (!outf) {
+					warn("couldn't create file '%s'", qe->path);
+					goto nextfile;
+				}
 
 				if (inode.di_numextents > EFS_DIRECTEXTENTS) {
 					efs_err_t erc;
@@ -399,6 +418,7 @@ int main(int argc, char *argv[])
 			rc = chmod(qe->path, inode.di_mode & 0777);
 			if (rc == -1) err(1, "couldn't set permissions on '%s'\n", qe->path);
 		}
+nextfile:
 		free(qe->path);
 	}
 
