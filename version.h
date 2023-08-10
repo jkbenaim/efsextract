@@ -1,0 +1,2 @@
+#pragma once
+#define PROG_VERSION "efsextract_0.1"

@@ -1,0 +1,52 @@
+'\" -*- coding: UTF-8 -*-
+.TH efsextract 1
+.SH NAME
+efsextract \- extract files from SGI CD images or EFS file systems
+.SH SYNOPSIS
+.nf
+\fBefsextract\fR [\fIOPTION\fR] [\fIFILE\fR]
+\fBefsextract\fR [\fI-h\fR|\fI-V\fR]
+.SH DESCRIPTION
+.I efsextract
+extracts files from an SGI CD image, or an EFS file system.
+.P
+Silicon Graphics (SGI) was a computer company that existed from 1981 to
+2009. During this period, they shipped software for their computers,
+sometimes on CD, and often not using the standard ISO9660 file system.
+These discs are instead simply hard discs images pressed to CD. Thus,
+they have an SGI disk label and an EFS partition.
+.P
+Most systems cannot understand this sort of disc format. This tool was
+developed to allow non-SGI systems to at least be able to extract files
+from such discs.
+.SH OPTIONS
+.TP
+.B \-h
+Print a usage message on standard output and exit successfully.
+.TP
+.B \-l
+List files without extracting.
+.TP
+.B \-p NUM
+Use partition number \fBNUM\fR (default: 7).
+.TP
+.B \-P
+Also extract file permissions.
+.TP
+.B \-q
+Do not show file listing while extracting.
+.TP
+.B \-V
+Print version information on standard output and exit successfully.
+.SH AUTHOR
+Jason Benaim <jkbenaim@gmail.com>
+.SH COPYRIGHT
+Copyright \(co 2023 Jason Benaim.
+.br
+Licensed under the GNU GPL version 3 or later.
+.br
+This is free software; you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+.SH SEE ALSO
+.BR iso-read (1),
+.BR isoinfo (1)

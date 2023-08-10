@@ -1,0 +1,52 @@
+efsextract(1)		  General Commands Manual	      efsextract(1)
+
+NAME
+       efsextract - extract files from SGI CD images or EFS file systems
+
+SYNOPSIS
+       efsextract [OPTION] [FILE]
+       efsextract [-h|-V]
+
+DESCRIPTION
+       efsextract extracts files from an SGI CD image, or an EFS file
+       system.
+
+       Silicon Graphics (SGI) was a computer company that existed from 1981
+       to 2009. During this period, they shipped software for their
+       computers, sometimes on CD, and often not using the standard ISO9660
+       file system.  These discs are instead simply hard discs images
+       pressed to CD. Thus, they have an SGI disk label and an EFS
+       partition.
+
+       Most systems cannot understand this sort of disc format. This tool
+       was developed to allow non-SGI systems to at least be able to
+       extract files from such discs.
+
+OPTIONS
+       -h     Print a usage message on standard output and exit
+	      successfully.
+
+       -l     List files without extracting.
+
+       -p NUM Use partition number NUM (default: 7).
+
+       -P     Also extract file permissions.
+
+       -q     Do not show file listing while extracting.
+
+       -V     Print version information on standard output and exit
+	      successfully.
+
+AUTHOR
+       Jason Benaim <jkbenaim@gmail.com>
+
+COPYRIGHT
+       Copyright © 2023 Jason Benaim.
+       Licensed under the GNU GPL version 3 or later.
+       This is free software; you are free to change and redistribute it.
+       There is NO WARRANTY, to the extent permitted by law.
+
+SEE ALSO
+       iso-read(1), isoinfo(1)
+
+							      efsextract(1)

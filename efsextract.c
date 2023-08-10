@@ -19,7 +19,9 @@
 #include "hexdump.h"
 #include "noreturn.h"
 #include "progname.h"
+#include "version.h"
 
+noreturn static void tryhelp(void);
 noreturn static void usage(void);
 
 struct qent {
@@ -187,42 +189,59 @@ int main(int argc, char *argv[])
 
 	progname_init(argc, argv);
 	
-	while ((rc = getopt(argc, argv, "lp:Pq")) != -1)
+	while ((rc = getopt(argc, argv, "hlp:PqV")) != -1)
 		switch (rc) {
+		case 'h':
+			usage();
+			break;
 		case 'l':
-			if (lflag != 0)
-				usage();
+			if (lflag != 0) {
+				warnx("multiple use of `-l'");
+				tryhelp();
+			}
 			lflag = 1;
 			break;
 		case 'p':
-			if (parnum != -1)
-				usage();
+			if (parnum != -1) {
+				warnx("multiple use of `-p'");
+				tryhelp();
+			}
 			{
 				char *ptr = NULL;
 				parnum = strtol(optarg, &ptr, 10);
 				if (*ptr)
-					errx(1, "bad partition number '%s'", optarg);
+					errx(1, "bad partition number `%s'", optarg);
 			}
 			break;
 		case 'P':
-			if (Pflag != 0)
-				usage();
+			if (Pflag != 0) {
+				warnx("multiple use of `-P'");
+				tryhelp();
+			}
 			Pflag = 1;
 			break;
 		case 'q':
-			if (qflag != 0)
-				usage();
+			if (qflag != 0) {
+				warnx("multiple use of `-q'");
+				tryhelp();
+			}
 			qflag = 1;
 			break;
+		case 'V':
+			fprintf(stderr, "%s\n", PROG_VERSION);
+			exit(EXIT_SUCCESS);
+			break;
 		default:
-			usage();
+			tryhelp();
 		}
 	argc -= optind;
 	argv += optind;
 	if (*argv != NULL)
 		filename = *argv;
-	else
-		usage();
+	else {
+		warnx("must specify a file");
+		tryhelp();
+	}
 	if (parnum == -1)
 		parnum = 7;
 
@@ -434,11 +453,27 @@ nextfile:
 	return EXIT_SUCCESS;
 }
 
+noreturn static void tryhelp(void)
+{
+	(void)fprintf(stderr, "Try `%s -h' for more information.\n",
+		__progname);
+	exit(EXIT_FAILURE);
+}
+
 noreturn static void usage(void)
 {
-	(void)fprintf(stderr, "usage: %s [-lPq] [-p #] file\n",
-		__progname
+	(void)fprintf(stderr, 
+"Usage: %s [OPTION] [FILE]\n"
+"Extract files from the SGI CD image (or EFS file system) in FILE.\n"
+"\n"
+"  -l       list files without extracting\n"
+"  -p NUM   use partition number (default: 7)\n"
+"  -P       also extract with file permissions\n"
+"  -q       do not show file listing while extracting\n"
+"\n"
+"Please report any bugs to <jkbenaim@gmail.com>.\n"
+,		__progname
 	);
-	exit(EXIT_FAILURE);
+	exit(EXIT_SUCCESS);
 }
 
