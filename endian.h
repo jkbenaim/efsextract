@@ -109,6 +109,13 @@
 #	define __LITTLE_ENDIAN LITTLE_ENDIAN
 #	define __PDP_ENDIAN    PDP_ENDIAN
 
+#elif defined(__sgi)
+
+#	include <sys/endian.h>
+
+#	define be32toh(x) ntohl(x)
+#	define be16toh(x) ntohs(x)
+
 #else
 
 #	error platform not supported

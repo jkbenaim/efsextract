@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-#include <err.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <iso646.h>
@@ -15,6 +14,7 @@
 #endif
 
 #include "efs_internal.h"
+#include "err.h"
 #include "endian.h"
 #include "hexdump.h"
 #include "noreturn.h"

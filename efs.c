@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-#include <err.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -8,6 +7,7 @@
 #include "efs.h"
 #include "efs_internal.h"
 #include "endian.h"
+#include "err.h"
 
 extern char *__progname;
 
