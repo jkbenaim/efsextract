@@ -44,9 +44,14 @@ int queue_enqueue(efs_ino_t ino, char *path, char *name)
 	if (strlen(path) == 0) {
 		q->path = strdup(name);
 	} else {
-		rc = asprintf(&(q->path), "%s/%s", path, name);
-		if (rc == -1)
-			errx(1, "in asprintf");
+		size_t stringsize = strlen(path) + strlen("/") + strlen(name) + 1;
+		q->path = malloc(stringsize);
+		if (!q->path)
+			err(1, "in malloc");
+		rc = snprintf(q->path, stringsize, "%s/%s", path, name);
+		if (rc >= stringsize)
+			errx(1, "in snprintf");
+		q->path[stringsize - 1] = '\0';
 	}
 
 	if (tail)
