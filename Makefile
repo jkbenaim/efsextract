@@ -1,6 +1,6 @@
 target  ?= efsextract
 objects := dvh.o efsextract.o efs.o fileslice.o hexdump.o progname.o
-CFLAGS  += -std=gnu99 -ggdb
+CFLAGS  += -std=gnu99
 
 .PHONY: all
 all:	$(target) README
@@ -23,3 +23,4 @@ README: ${target}.1
 	MANWIDTH=77 man --nh --nj ./${target}.1 | col -b > $@
 
 $(target): $(objects)
+	$(CC) -o "$@" ${objects}

@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-#ifndef __APPLE__
+#if defined(__linux)
 #include <sys/sysmacros.h>
 #endif
 
