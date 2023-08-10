@@ -1,13 +1,14 @@
 target  ?= efsextract
 objects := dvh.o efsextract.o efs.o fileslice.o hexdump.o progname.o
 CFLAGS  += -std=gnu99
+LDLIBS  += -lws2_32
 
 .PHONY: all
 all:	$(target) README
 
 .PHONY: clean
 clean:
-	rm -f $(target) $(objects)
+	rm -f $(target).exe $(objects)
 
 .PHONY: install
 install: ${target} ${target}.1

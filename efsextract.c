@@ -13,6 +13,7 @@
 #include <sys/sysmacros.h>
 #endif
 
+#include "efs.h"
 #include "efs_internal.h"
 #include "err.h"
 #include "endian.h"
@@ -275,7 +276,11 @@ int main(int argc, char *argv[])
 		switch (filetype) {
 		case IFDIR:
 			if (!lflag && strlen(qe->path)) {
+#if defined(__MINGW32__)
+				rc = mkdir(qe->path);
+#else
 				rc = mkdir(qe->path, 0755);
+#endif
 				//if (rc == -1) err(1, "couldn't make directory '%s'", qe->path);
 			}
 			for (unsigned exnum = 0; exnum < inode.di_numextents; exnum++) {
@@ -321,17 +326,19 @@ int main(int argc, char *argv[])
 				 * Check if our destination file exists
 				 * as a symlink, and if so, remove it.
 				 */
+#if !defined(__MINGW32__)
 				struct stat sb = {0,};
 				rc = lstat(qe->path, &sb);
 				if ((rc == -1) && (errno != ENOENT)) {
 					err(1, "couldn't stat output path '%s'", qe->path);
-				} else if (((sb.st_mode) & S_IFMT) == S_IFLNK) {
+				} else if (((sb.st_mode) & IFMT) == IFLNK) {
 					rc = unlink(qe->path);
 					if (rc == -1)
 						err(1, "couldn't remove '%s'", qe->path);
 				}
+#endif
 
-				FILE *outf = fopen(qe->path, "w");
+				FILE *outf = fopen(qe->path, "wb");
 				if (!outf) {
 					warn("couldn't create file '%s'", qe->path);
 					goto nextfile;
@@ -374,14 +381,16 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case IFIFO:
+#if !defined(__MINGW32__)
 			if (!lflag) {
 				rc = mkfifo(qe->path, inode.di_mode & 0777);
 				if (rc == -1) warn("couldn't create fifo '%s'", qe->path);
 			}
+#endif
 			break;
 		case IFCHR:
 		case IFBLK:
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(__MINGW32__)
 			if (!lflag) {
 				dev_t dev;
 				mode_t mode;
@@ -389,9 +398,9 @@ int main(int argc, char *argv[])
 
 				mode = inode.di_mode & 0777;
 				if (filetype == IFCHR) {
-					mode |= S_IFCHR;
+					mode |= IFCHR;
 				} else if (filetype == IFBLK) {
-					mode |= S_IFBLK;
+					mode |= IFBLK;
 				}
 
 				if (inode.di_u.di_dev.ndev != 0) {
@@ -411,6 +420,7 @@ int main(int argc, char *argv[])
 #endif
 			break;
 		case IFLNK:
+#if !defined(__MINGW32__)
 			if (!lflag) {
 				char namebuf[EFS_MAX_NAME + 1];
 				efs_err_t erc;
@@ -432,6 +442,7 @@ int main(int argc, char *argv[])
 				if (rc == -1) warn("couldn't create symlink '%s'", qe->path);
 				free(buf);
 			}
+#endif
 			break;
 		case IFSOCK:
 			warnx("sockets not supported");

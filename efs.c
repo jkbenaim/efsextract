@@ -324,7 +324,7 @@ efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
 	}
 	(*ctx)->err = EFS_ERR_OK;
 
-	(*ctx)->f = fopen(filename, "r");
+	(*ctx)->f = fopen(filename, "rb");
 	if (!(*ctx)->f) {
 		erc = EFS_ERR_NOENT;
 		goto out_error;
