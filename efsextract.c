@@ -18,8 +18,8 @@
 #include "endian.h"
 #include "hexdump.h"
 #include "noreturn.h"
+#include "progname.h"
 
-extern char *__progname;
 noreturn static void usage(void);
 
 struct qent {
@@ -179,6 +179,8 @@ int main(int argc, char *argv[])
 	int parnum = -1;
 
 	char buf[BLKSIZ * 2];
+
+	progname_init(argc, argv);
 	
 	while ((rc = getopt(argc, argv, "lp:Pq")) != -1)
 		switch (rc) {
