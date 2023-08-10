@@ -477,10 +477,12 @@ noreturn static void usage(void)
 "Usage: %s [OPTION] [FILE]\n"
 "Extract files from the SGI CD image (or EFS file system) in FILE.\n"
 "\n"
+"  -h       print this help text\n"
 "  -l       list files without extracting\n"
 "  -p NUM   use partition number (default: 7)\n"
 "  -P       also extract with file permissions\n"
 "  -q       do not show file listing while extracting\n"
+"  -V       print program version\n"
 "\n"
 "Please report any bugs to <jkbenaim@gmail.com>.\n"
 ,		__progname
