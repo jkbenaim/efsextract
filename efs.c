@@ -183,6 +183,10 @@ const char *efs_strerror(efs_err_t e)
 		return "read error";
 	case EFS_ERR_NOPAR:
 		return "requested partition not found";
+	case EFS_ERR_NOVH:
+		return "volume header not found";
+	case EFS_ERR_BADVH:
+		return "volume header checksum failure";
 	default:
 		return "";
 	}
@@ -334,6 +338,24 @@ efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
 	rc = fread(&dvh, sizeof(dvh), 1, (*ctx)->f);
 	if (rc != 1) {
 		erc = EFS_ERR_READFAIL;
+		goto out_error;
+	}
+	
+	/* Validate volume header magic */
+	if (be32toh(dvh.vh_magic) != VHMAGIC) {
+		erc = EFS_ERR_NOVH;
+		goto out_error;
+	}
+	
+	/* Validate volume header checksum */
+	uint32_t sum = 0;
+	uint32_t words[sizeof(struct dvh_s)/4];
+	memcpy(&words, &dvh, sizeof(words));
+	for (size_t i = 0; i < (sizeof(words)/(sizeof(words[0]))); i++) {
+		sum += be32toh(words[i]);
+	}
+	if (sum != 0) {
+		erc = EFS_ERR_BADVH;
 		goto out_error;
 	}
 

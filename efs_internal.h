@@ -202,6 +202,8 @@ typedef enum {
 	EFS_ERR_NOMEM,
 	EFS_ERR_READFAIL,
 	EFS_ERR_NOPAR,
+	EFS_ERR_NOVH,
+	EFS_ERR_BADVH,
 } efs_err_t;
 
 typedef struct efx_ctx {
