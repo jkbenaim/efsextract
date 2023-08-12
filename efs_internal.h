@@ -204,6 +204,8 @@ typedef enum {
 	EFS_ERR_NOPAR,
 	EFS_ERR_NOVH,
 	EFS_ERR_BADVH,
+	EFS_ERR_SBMAGIC,
+	EFS_ERR_PARTYPE,
 } efs_err_t;
 
 typedef struct efx_ctx {

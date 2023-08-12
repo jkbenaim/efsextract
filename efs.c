@@ -11,6 +11,8 @@
 
 extern char *__progname;
 
+#define ARRAY_SIZE(x) (sizeof(x)/sizeof(*x))
+
 /*
 struct efs_s {
 	int32_t fs_size;
@@ -187,6 +189,10 @@ const char *efs_strerror(efs_err_t e)
 		return "volume header not found";
 	case EFS_ERR_BADVH:
 		return "volume header checksum failure";
+	case EFS_ERR_SBMAGIC:
+		return "superblock not found";
+	case EFS_ERR_PARTYPE:
+		return "unrecognized partition type";
 	default:
 		return "";
 	}
@@ -349,16 +355,34 @@ efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
 	
 	/* Validate volume header checksum */
 	uint32_t sum = 0;
-	uint32_t words[sizeof(struct dvh_s)/4];
+	uint32_t words[128];
 	memcpy(&words, &dvh, sizeof(words));
-	for (size_t i = 0; i < (sizeof(words)/(sizeof(words[0]))); i++) {
+	for (size_t i = 0; i < ARRAY_SIZE(words); i++) {
 		sum += be32toh(words[i]);
 	}
 	if (sum != 0) {
 		erc = EFS_ERR_BADVH;
 		goto out_error;
 	}
-
+	
+	/* Get type for par */
+	struct dvh_pt_s pt;
+	pt = dvh_getPar(&dvh, parnum);
+	switch (pt.pt_type) {
+	case PT_VOLHDR:
+		/* TODO */
+		erc = EFS_ERR_PARTYPE;
+		goto out_error;
+		break;
+	case PT_SYSV:
+	case PT_EFS:
+		break;
+	default:
+		erc = EFS_ERR_PARTYPE;
+		goto out_error;
+		break;
+	}
+	
 	/* Open par slice */
 	(*ctx)->fs = efs_get_slice_for_par(*ctx, parnum);
 	if (!((*ctx)->fs)) {
@@ -372,8 +396,15 @@ efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
 		erc = rc;
 		goto out_error;
 	}
-	(*ctx)->sb = efstoh((*ctx)->sb);
+	
+	/* Validate superblock magic */
+	if (!IS_EFS_MAGIC(be32toh((*ctx)->sb.fs_magic))) {
+		erc = EFS_ERR_SBMAGIC;
+		goto out_error;
+	}
 
+	/* Convert superblock to native endianness */
+	(*ctx)->sb = efstoh((*ctx)->sb);
 
 /*
 	mkfs_efs: /dev/dsk/dks0d5s7: blocks=486400 inodes=49856
