@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
 	efs_err_t erc;
 	erc = efs_open(&ctx, filename, parnum);
 	if (erc != EFS_ERR_OK)
-		errefs(1, erc, "couldn't open '%s'", filename);
+		err(1, "couldn't open '%s'", filename);
 	
 	erc = efs_get_blocks(ctx, &buf, 0, 2);
 	if (erc != EFS_ERR_OK)
