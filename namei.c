@@ -142,12 +142,27 @@ unsigned _efs_nbytes_this_extent(
 	unsigned pos,
 	unsigned nbytes
 ) {
+	__label__ out_error;
 	size_t nbytes_in_extent;
 	size_t start, end;
-	start = BLKSIZ * ex.ex_offset;
-	end = BLKSIZ * (ex.ex_offset + ex.ex_length);
-	 /* assert position is within extent */
-	 /* TODO */
+	start = BLKSIZ * ex->ex_offset;
+	end = BLKSIZ * (ex->ex_offset + ex->ex_length);
+	
+	/* assert position is within extent */
+	if (pos < start)
+		goto out_error;
+	if (pos > end)
+		goto out_error;
+	
+	/* move pos to be relative to start of extent */
+	pos -= start;
+	unsigned bytes_left_in_extent;
+	bytes_left_in_extent = end - start - pos;
+#define MIN(a, b) (a>b?b:a)
+	return MIN(bytes_left_in_extent, nbytes);
+#undef MIN
+out_error:
+	return 0;
 }
 
 size_t _efs_file_fread(
@@ -156,17 +171,42 @@ size_t _efs_file_fread(
 	size_t nmemb,
 	struct _efs_file *file
 ) {
+	efs_err_t erc;
 	size_t out;
 	struct efs_extent *ex;
 	size_t nbytes;
+	size_t nbytes_left;
+	uint8_t buf[BLKSIZ];
 	
 	nbytes = size * nmemb;
+	nbytes_left = nbytes;
 	ex = _efs_find_extent(file->exs, file->numextents, file->pos);
 	if (!ex) return 0;
 	unsigned nbytes_this_extent;
 	nbytes_this_extent = _efs_nbytes_this_extent(ex, file->pos, nbytes);
 	
 	memset(ptr, 0xab, nbytes);
+	printf("nbytes_this_extent: %u\n", nbytes_this_extent);
+	while (nbytes_this_extent > 0) {
+		unsigned nbytes_this_read;
+#define MIN(a,b) (a>b?b:a)
+		nbytes_this_read = MIN(BLKSIZ, nbytes_this_extent);
+#undef MIN
+		printf("nbytes_this_read: %u\n", nbytes_this_read);
+		printf("nbytes_this_extent: %u\n", nbytes_this_extent);
+		erc = efs_get_blocks(
+			file->ctx,
+			buf,
+			ex->ex_bn,
+			1
+		);
+		if (erc != EFS_ERR_OK)
+			errefs(1, erc, "in _efs_file_fread");
+		memcpy(ptr, buf, nbytes_this_read);
+		printf("ok\n");
+		ptr += nbytes_this_read;
+		nbytes_this_extent -= nbytes_this_read;
+	}
 	
 	return 1;
 }
@@ -298,7 +338,6 @@ void _efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	struct efs_dinode di;
 	struct efs_dirblk dirblk;
 	di = efs_get_inode(ctx, ino);
-	//hexdump(&di, sizeof(di));
 	struct efs_extent *exs;
 	exs = _efs_get_extents(ctx, &di);
 	printf("ino   ma  bn      ln  offset\n");
@@ -319,11 +358,14 @@ void _efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 		errx(1, "in _efs_read_dirblks while opening directory");
 	printf("file size: %u\n", file->nbytes);
 	for (unsigned blk = 0; blk < (file->nbytes / BLKSIZ); blk++) {
+		memset(&dirblk, 0xab, sizeof(dirblk));
 		sRc = _efs_file_fread(&dirblk, sizeof(dirblk), 1, file);
 		if (sRc != 1) errx(1, "while reading dirblk blk");
 		hexdump(&dirblk, sizeof(dirblk));
 		printf("PPL\n");
 	}
+	
+	
 	
 	_efs_file_fclose(file);
 	file = NULL;
