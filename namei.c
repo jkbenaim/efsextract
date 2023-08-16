@@ -358,14 +358,19 @@ int _efs_file_ferror(struct _efs_file *file)
 	return file->error;
 }
 
-void _efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
+struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 {
+	struct efs_dirent *out = NULL;
 	size_t sRc;
 	struct efs_dinode di;
 	struct efs_dirblk dirblk;
 	di = efs_get_inode(ctx, ino);
+	if ((di.di_mode & IFMT) != IFDIR) {
+		return;
+	}
 	struct efs_extent *exs;
 	exs = _efs_get_extents(ctx, &di);
+#if 0
 	printf("ino   ma  bn      ln  offset\n");
 	printf("----  --  ------  --  ------\n");
 	for (unsigned i = 0; i < di.di_numextents; i++) {
@@ -377,21 +382,16 @@ void _efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 			exs[i].ex_offset
 		);
 	}
+#endif
 	
 	struct _efs_file *file;
 	file = _efs_file_open(ctx, ino);
 	if (!file)
 		errx(1, "in _efs_read_dirblks while opening directory");
-	//printf("file size: %u\n", file->nbytes);
 	for (unsigned blk = 0; blk < (file->nbytes / BLKSIZ); blk++) {
-		//printf("blk: %u\n", blk);
 		memset(&dirblk, 0xab, sizeof(dirblk));
 		sRc = _efs_file_fread(&dirblk, sizeof(dirblk), 1, file);
 		if (sRc != 1) errx(1, "while reading dirblk blk");
-		//printf("dirblk.magic: %04x\n", dirblk.magic);
-		//printf("dirblk.firstused: %02x\n", dirblk.firstused);
-		//printf("dirblk.slots: %02x\n", dirblk.slots);
-		//hexdump(&dirblk, BLKSIZ);
 		if (dirblk.magic != EFS_DIRBLK_MAGIC) {
 			warnx("skipping block %u", blk);
 			hexdump(&dirblk, BLKSIZ);
@@ -406,11 +406,10 @@ void _efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 				dent = (struct efs_dent *)((uint8_t *)(&dirblk) + slotOffset);
 				memcpy(name, dent->d_name, dent->d_namelen);
 				name[dent->d_namelen] = '\0';
-				//printf("file %s\n", name);
+				printf("%8x  %s\n", dent->l, name);
 				/* TODO */
 			}
 		}
-		
 	}
 	
 	
@@ -433,7 +432,7 @@ efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino)
 
 efs_ino_t efs_namei(efs_t *ctx, char *name)
 {
-	return _efs_namei_aux(ctx, name, /*EFS_BLK_ROOTINO*/ 4);
+	return _efs_namei_aux(ctx, name, EFS_BLK_ROOTINO);
 }
 
 __attribute__((weak))
