@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 #include <unistd.h>
 #include "efs.h"
 #include "efs_internal.h"
@@ -169,9 +169,6 @@ unsigned _efs_nbytes_firstbn(
 	struct efs_extent *ex,
 	unsigned pos
 ) {
-	size_t start,end;
-	start = BLKSIZ * ex->ex_offset;
-	end = BLKSIZ * (ex->ex_offset + ex->ex_length);
 	
 	unsigned blkOff;
 	
@@ -191,17 +188,13 @@ size_t _efs_file_fread(
 	size_t out;
 	struct efs_extent *ex;
 	size_t nbytes;
-	size_t nbytes_left;
 	uint8_t buf[BLKSIZ];
 	
 	nbytes = size * nmemb;
-	nbytes_left = nbytes;
 	ex = _efs_find_extent(file->exs, file->numextents, file->pos);
 	if (!ex) return 0;
 	unsigned nbytes_this_extent;
 	nbytes_this_extent = _efs_nbytes_this_extent(ex, file->pos, nbytes);
-	unsigned firstbn;
-	firstbn = _efs_nbytes_firstbn(ex, file->pos);
 	
 	//printf("file->pos: %u\n", file->pos);
 	memset(ptr, 0xab, nbytes);
@@ -377,9 +370,9 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	if (!out)
 		return NULL;
 	
+#if 0
 	struct efs_extent *exs;
 	exs = _efs_get_extents(ctx, &di);
-#if 0
 	printf("ino   ma  bn      ln  offset\n");
 	printf("----  --  ------  --  ------\n");
 	for (unsigned i = 0; i < di.di_numextents; i++) {
