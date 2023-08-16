@@ -144,7 +144,6 @@ unsigned _efs_nbytes_this_extent(
 	unsigned nbytes
 ) {
 	__label__ out_error;
-	size_t nbytes_in_extent;
 	size_t start, end;
 	start = BLKSIZ * ex->ex_offset;
 	end = BLKSIZ * (ex->ex_offset + ex->ex_length);
@@ -174,7 +173,6 @@ unsigned _efs_nbytes_firstbn(
 	start = BLKSIZ * ex->ex_offset;
 	end = BLKSIZ * (ex->ex_offset + ex->ex_length);
 	
-	unsigned byteOff;
 	unsigned blkOff;
 	
 	typeof(pos) newpos;
@@ -234,7 +232,8 @@ size_t _efs_file_fread(
 	file->pos += nbytes;
 	
 	/* this return value is truly wrong */
-	return nmemb;
+	out = 1;
+	return out;
 }
 
 struct _efs_file *_efs_file_open(efs_t *ctx, efs_ino_t ino)
@@ -358,16 +357,26 @@ int _efs_file_ferror(struct _efs_file *file)
 	return file->error;
 }
 
+#define EFS_DIRENT_INCR	(100)
+
 struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 {
 	struct efs_dirent *out = NULL;
+	size_t out_size = 0;
+	size_t out_used = 0;
 	size_t sRc;
 	struct efs_dinode di;
 	struct efs_dirblk dirblk;
+	
 	di = efs_get_inode(ctx, ino);
-	if ((di.di_mode & IFMT) != IFDIR) {
-		return;
-	}
+	if ((di.di_mode & IFMT) != IFDIR)
+		return NULL;
+	
+	out_size = EFS_DIRENT_INCR;
+	out = calloc(out_size, sizeof(struct efs_dirent));
+	if (!out)
+		return NULL;
+	
 	struct efs_extent *exs;
 	exs = _efs_get_extents(ctx, &di);
 #if 0
@@ -398,35 +407,68 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 			continue;
 		}
 		for (unsigned slot = 0; slot < dirblk.slots; slot++) {
-			char name[EFS_MAX_NAME + 1];
 			unsigned slotOffset;
 			struct efs_dent *dent;
 			if (dirblk.space[slot] >= dirblk.firstused) {
+				struct efs_dirent de;
 				slotOffset = dirblk.space[slot] << 1;
 				dent = (struct efs_dent *)((uint8_t *)(&dirblk) + slotOffset);
-				memcpy(name, dent->d_name, dent->d_namelen);
-				name[dent->d_namelen] = '\0';
-				printf("%8x  %s\n", dent->l, name);
-				/* TODO */
+				memcpy(&de.d_name, dent->d_name, dent->d_namelen);
+				de.d_name[dent->d_namelen] = '\0';
+				de.d_ino = dent->l;
+				//printf("%8x  %s\n", de.d_ino, de.d_name);
+				
+				/* add dirent */
+				if (out_size == out_used) {
+					out_size += EFS_DIRENT_INCR;
+					out = realloc(out, out_size * sizeof(struct efs_dirent));
+					if (!out)
+						return NULL;
+				}
+				
+				out[out_used++] = de;
 			}
 		}
 	}
 	
-	
+	/* add one more dirent as a terminator */
+	out = realloc(out, (out_used + 1) * sizeof(struct efs_dirent));
+	out[out_used].d_ino = 0;
 	
 	_efs_file_fclose(file);
 	file = NULL;
+	return out;
 }
 
 efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino)
 {
+	struct efs_dirent *dirents;
 	char *firstpart;
 	
+	dirents = _efs_read_dirblks(ctx, ino);
+	if (!dirents)
+		return -1;
+	
 	firstpart = _getfirstpathpart(name);
+	if (!firstpart)
+		return -1;
 	printf("firstpart: '%s'\n", firstpart);
-	if (firstpart[0] == '\0')
-		return ino;
-	_efs_read_dirblks(ctx, ino);
+	
+	struct efs_dirent *de;
+	for (de = dirents; de->d_ino; de++) {
+		if (!strcmp(de->d_name, firstpart)) {
+			printf("found it at inode %x\n", de->d_ino);
+			if (firstpart == name) {
+				return de->d_ino;
+			} else {
+				char *ptr = strchr(name, '/') + 1;
+				return _efs_namei_aux(ctx, ptr, de->d_ino);
+			}
+		}
+	}
+	
+	free(dirents);
+	
 	return -1;
 }
 
@@ -459,8 +501,8 @@ int main(int argc, char *argv[])
 	erc = efs_open(&ctx, filename, 7);
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open file '%s'", filename);
-	ino = efs_namei(ctx, "a");
-	printf("inode: %u\n", ino);
+	ino = efs_namei(ctx, "catman/p_man/cat3/Xm/XmFileSelectionBoxGetChild.z");
+	printf("inode: %x\n", ino);
 	
 	efs_close(ctx);
 	ctx = NULL;
