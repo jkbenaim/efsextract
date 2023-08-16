@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <unistd.h>
 #include "efs.h"
 #include "efs_internal.h"
 #include "err.h"
@@ -130,7 +131,7 @@ struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents,
 		if ((ex->ex_offset * BLKSIZ) > pos)
 			continue;
 		/* too high? */
-		if (((ex->ex_offset + ex->ex_length) * BLKSIZ) < pos)
+		if (((ex->ex_offset + ex->ex_length) * BLKSIZ) <= pos)
 			continue;
 		return ex;
 	}
@@ -165,6 +166,23 @@ out_error:
 	return 0;
 }
 
+unsigned _efs_nbytes_firstbn(
+	struct efs_extent *ex,
+	unsigned pos
+) {
+	size_t start,end;
+	start = BLKSIZ * ex->ex_offset;
+	end = BLKSIZ * (ex->ex_offset + ex->ex_length);
+	
+	unsigned byteOff;
+	unsigned blkOff;
+	
+	typeof(pos) newpos;
+	newpos = pos - (BLKSIZ * ex->ex_offset);
+	blkOff = newpos / BLKSIZ;
+	return blkOff;
+}
+
 size_t _efs_file_fread(
 	void *ptr,
 	size_t size,
@@ -184,31 +202,39 @@ size_t _efs_file_fread(
 	if (!ex) return 0;
 	unsigned nbytes_this_extent;
 	nbytes_this_extent = _efs_nbytes_this_extent(ex, file->pos, nbytes);
+	unsigned firstbn;
+	firstbn = _efs_nbytes_firstbn(ex, file->pos);
 	
+	//printf("file->pos: %u\n", file->pos);
 	memset(ptr, 0xab, nbytes);
-	printf("nbytes_this_extent: %u\n", nbytes_this_extent);
+	//printf("nbytes_this_extent: %u\n", nbytes_this_extent);
+	
 	while (nbytes_this_extent > 0) {
 		unsigned nbytes_this_read;
 #define MIN(a,b) (a>b?b:a)
 		nbytes_this_read = MIN(BLKSIZ, nbytes_this_extent);
 #undef MIN
-		printf("nbytes_this_read: %u\n", nbytes_this_read);
-		printf("nbytes_this_extent: %u\n", nbytes_this_extent);
+		//printf("nbytes_this_read: %u\n", nbytes_this_read);
+		//printf("nbytes_this_extent: %u\n", nbytes_this_extent);
+		unsigned firstbn = _efs_nbytes_firstbn(ex, file->pos);
 		erc = efs_get_blocks(
 			file->ctx,
 			buf,
-			ex->ex_bn,
+			ex->ex_bn + firstbn,
 			1
 		);
 		if (erc != EFS_ERR_OK)
 			errefs(1, erc, "in _efs_file_fread");
 		memcpy(ptr, buf, nbytes_this_read);
-		printf("ok\n");
+		//printf("ok\n");
 		ptr += nbytes_this_read;
 		nbytes_this_extent -= nbytes_this_read;
 	}
 	
-	return 1;
+	file->pos += nbytes;
+	
+	/* this return value is truly wrong */
+	return nmemb;
 }
 
 struct _efs_file *_efs_file_open(efs_t *ctx, efs_ino_t ino)
@@ -356,13 +382,35 @@ void _efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	file = _efs_file_open(ctx, ino);
 	if (!file)
 		errx(1, "in _efs_read_dirblks while opening directory");
-	printf("file size: %u\n", file->nbytes);
+	//printf("file size: %u\n", file->nbytes);
 	for (unsigned blk = 0; blk < (file->nbytes / BLKSIZ); blk++) {
+		//printf("blk: %u\n", blk);
 		memset(&dirblk, 0xab, sizeof(dirblk));
 		sRc = _efs_file_fread(&dirblk, sizeof(dirblk), 1, file);
 		if (sRc != 1) errx(1, "while reading dirblk blk");
-		hexdump(&dirblk, sizeof(dirblk));
-		printf("PPL\n");
+		//printf("dirblk.magic: %04x\n", dirblk.magic);
+		//printf("dirblk.firstused: %02x\n", dirblk.firstused);
+		//printf("dirblk.slots: %02x\n", dirblk.slots);
+		//hexdump(&dirblk, BLKSIZ);
+		if (dirblk.magic != EFS_DIRBLK_MAGIC) {
+			warnx("skipping block %u", blk);
+			hexdump(&dirblk, BLKSIZ);
+			continue;
+		}
+		for (unsigned slot = 0; slot < dirblk.slots; slot++) {
+			char name[EFS_MAX_NAME + 1];
+			unsigned slotOffset;
+			struct efs_dent *dent;
+			if (dirblk.space[slot] >= dirblk.firstused) {
+				slotOffset = dirblk.space[slot] << 1;
+				dent = (struct efs_dent *)((uint8_t *)(&dirblk) + slotOffset);
+				memcpy(name, dent->d_name, dent->d_namelen);
+				name[dent->d_namelen] = '\0';
+				//printf("file %s\n", name);
+				/* TODO */
+			}
+		}
+		
 	}
 	
 	
@@ -385,7 +433,7 @@ efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino)
 
 efs_ino_t efs_namei(efs_t *ctx, char *name)
 {
-	return _efs_namei_aux(ctx, name, EFS_BLK_ROOTINO);
+	return _efs_namei_aux(ctx, name, /*EFS_BLK_ROOTINO*/ 4);
 }
 
 __attribute__((weak))
@@ -394,10 +442,24 @@ int main(int argc, char *argv[])
 	efs_err_t erc;
 	efs_t *ctx;
 	efs_ino_t ino;
+	int rc;
+	char *filename = NULL;
 	
-	erc = efs_open(&ctx, "../testdisk.img", 7);
+	while ((rc = getopt(argc, argv, "f:")) != -1)
+		switch (rc) {
+		case 'f':
+			filename = optarg;
+			break;
+		default:
+			errx(1, "unknown option");
+			break;
+		}
+	if (!filename)
+		errx(1, "specify a file with -f");
+	
+	erc = efs_open(&ctx, filename, 7);
 	if (erc != EFS_ERR_OK)
-		errefs(1, erc, "couldn't open file");
+		errefs(1, erc, "couldn't open file '%s'", filename);
 	ino = efs_namei(ctx, "a");
 	printf("inode: %u\n", ino);
 	

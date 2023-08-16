@@ -23,6 +23,6 @@ README: ${target}.1
 	MANWIDTH=77 man --nh --nj ./${target}.1 | col -b > $@
 
 $(target): $(objects)
-	$(CC) ${objects} ${LDLIBS} -o "$@"
+	$(CC) ${objects} ${LDLIBS} -o $@
 
 namei: namei.o efs.o dvh.o fileslice.o hexdump.o
