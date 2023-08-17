@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>
 #include "efs_internal.h"
 
 struct efs_dirent {
@@ -18,7 +19,24 @@ typedef struct efs_dir {
 } efs_dir_t;
 
 typedef struct efs_file {
+	struct efs_dinode dinode;
+	unsigned numextents;
+	struct efs_extent *exs;
+	efs_t *ctx;
+	efs_ino_t ino;
+	unsigned pos;
+	unsigned nbytes;
+	bool eof;
+	bool error;
 } efs_file_t;
+
+struct efs_stat {
+	efs_ino_t st_ino;
+	uint16_t st_mode;
+	int16_t st_nlink;
+	uint16_t st_uid;
+	uint16_t st_gid;
+};
 
 extern efs_ino_t efs_find_entry(efs_t *efs, const char *name);
 extern efs_dir_t *efs_opendir(efs_t *efs, const char *dirname);
