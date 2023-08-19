@@ -15,7 +15,6 @@ struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents,
 efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino);
 efs_ino_t efs_namei(efs_t *ctx, char *name);
 efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino);
-int efs_file_fclose(efs_file_t *file);
 
 char *_getfirstpathpart(char *name)
 {
@@ -174,7 +173,7 @@ unsigned _efs_nbytes_firstbn(
 	return blkOff;
 }
 
-size_t _efs_file_fread(
+size_t efs_fread(
 	void *ptr,
 	size_t size,
 	size_t nmemb,
@@ -225,7 +224,7 @@ size_t _efs_file_fread(
 	return out;
 }
 
-efs_file_t *efs_file_fopen(
+efs_file_t *efs_fopen(
 	efs_t *ctx,
 	const char *path,
 	const char *mode
@@ -306,7 +305,7 @@ int efs_file_fclose(efs_file_t *file)
 	return 0;
 }
 
-int _efs_file_fseek(efs_file_t *file, long offset, int whence)
+int efs_fseek(efs_file_t *file, long offset, int whence)
 {
 	long newpos;
 	
@@ -350,27 +349,27 @@ int _efs_file_fseek(efs_file_t *file, long offset, int whence)
 	return 0;
 }
 
-long _efs_file_ftell(efs_file_t *file)
+long efs_ftell(efs_file_t *file)
 {
 	return file->pos;
 }
 
-void _efs_file_rewind(efs_file_t *file)
+void efs_rewind(efs_file_t *file)
 {
-	(void)_efs_file_fseek(file, 0, SEEK_SET);
+	(void)efs_fseek(file, 0, SEEK_SET);
 }
 
-void _efs_file_clearerr(efs_file_t *file)
+void efs_clearerr(efs_file_t *file)
 {
 	file->eof = false;
 }
 
-int _efs_file_feof(efs_file_t *file)
+int efs_feof(efs_file_t *file)
 {
 	return file->eof;
 }
 
-int _efs_file_ferror(efs_file_t *file)
+int efs_ferror(efs_file_t *file)
 {
 	return file->error;
 }
@@ -417,7 +416,7 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 		errx(1, "in _efs_read_dirblks while opening directory");
 	for (unsigned blk = 0; blk < (file->nbytes / BLKSIZ); blk++) {
 		memset(&dirblk, 0xab, sizeof(dirblk));
-		sRc = _efs_file_fread(&dirblk, sizeof(dirblk), 1, file);
+		sRc = efs_fread(&dirblk, sizeof(dirblk), 1, file);
 		if (sRc != 1) errx(1, "while reading dirblk blk");
 		if (dirblk.magic != EFS_DIRBLK_MAGIC) {
 			warnx("skipping block %u", blk);
@@ -535,7 +534,7 @@ int main(int argc, char *argv[])
 	printf("inode: %x\n", ino);
 	
 	efs_file_t *f = NULL;
-	f = efs_file_fopen(ctx, "unix", "r");
+	f = efs_fopen(ctx, "unix", "r");
 	if (!f)
 		err(1, "couldn't open efs file");
 	efs_file_fclose(f);

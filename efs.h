@@ -44,3 +44,25 @@ extern int efs_closedir(efs_dir_t *dirp);
 extern struct efs_dirent *efs_readdir(efs_dir_t *dirp);
 extern void efs_rewinddir(efs_dir_t *dirp);
 
+extern efs_file_t *efs_fopen(
+	efs_t *ctx,
+	const char *path,
+	const char *mode
+);
+extern int efs_fclose(efs_file_t *file);
+extern size_t efs_fread(
+	void *ptr,
+	size_t size,
+	size_t nmemb,
+	efs_file_t *file
+);
+int efs_fseek(
+	efs_file_t *file,
+	long offset,
+	int whence
+);
+extern long efs_ftell(efs_file_t *file);
+extern void efs_rewind(efs_file_t *file);
+extern void efs_clearerr(efs_file_t *file);
+extern int efs_feof(efs_file_t *file);
+extern int efs_ferror(efs_file_t *file);
