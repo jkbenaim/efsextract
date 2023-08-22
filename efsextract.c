@@ -13,6 +13,7 @@
 #include <sys/sysmacros.h>
 #endif
 
+#include "dvh.h"
 #include "efs.h"
 #include "efs_internal.h"
 #include "err.h"
@@ -179,6 +180,7 @@ size_t write_extents(efs_t *ctx, FILE *outf, struct efs_extent *exs, size_t nex,
 int qflag = 0;
 int lflag = 0;
 int Pflag = 0;
+int Lflag = 0;
 
 int main(int argc, char *argv[])
 {
@@ -190,10 +192,17 @@ int main(int argc, char *argv[])
 
 	progname_init(argc, argv);
 	
-	while ((rc = getopt(argc, argv, "hlp:PqV")) != -1)
+	while ((rc = getopt(argc, argv, "hLlp:PqV")) != -1)
 		switch (rc) {
 		case 'h':
 			usage();
+			break;
+		case 'L':
+			if (Lflag != 0) {
+				warnx("multiple use of `-L'");
+				tryhelp();
+			}
+			Lflag = 1;
 			break;
 		case 'l':
 			if (lflag != 0) {
@@ -248,6 +257,61 @@ int main(int argc, char *argv[])
 
 	if (Pflag && lflag)
 		errx(1, "cannot combine P and l flags");
+	
+	if (Lflag && (Pflag || lflag || qflag))
+		errx(1, "cannot combine L flag with other flags");
+		
+	if (Lflag) {
+		FILE *f;
+		struct dvh_s dvh;
+		f = fopen(filename, "rb");
+		if (!f) err(1, "couldn't open '%s'", filename);
+		rc = fread(&dvh, sizeof(dvh), 1, f);
+		if (rc != 1)
+			err(1, "couldn't read dvh");
+		if (be32toh(dvh.vh_magic) != VHMAGIC)
+			errx(1, "bad VH magic");
+		printf("idx  start     size      type\n");
+		printf("---  --------  --------  --------\n");
+		for (unsigned i = 0; i < NPARTAB; i++) {
+			struct dvh_pt_s pt;
+			const char *typeName;
+			pt = dvh_getPar(&dvh, i);
+			typeName = dvh_getNameForType(pt.pt_type);
+			if (pt.pt_nblks) {
+				printf("%3u  %8d  %8d  ",
+					i,
+					pt.pt_firstlbn,
+					pt.pt_nblks
+				);
+				if (typeName) {
+					printf("%s\n", typeName);
+				} else {
+					printf("(%d)\n", pt.pt_type);
+				}
+			} else {
+				//printf("%3u         -         -\n", i);
+			}
+		}
+		printf("\n");
+		printf("start     size      name\n");
+		printf("--------  --------  --------\n");
+		for (unsigned i = 0; i < NVDIR; i++) {
+			struct dvh_vd_s vd;
+			char name[VDNAMESIZE + 1];
+			name[VDNAMESIZE] = '\0';
+			vd = dvh_getFile(&dvh, i);
+			memcpy(name, vd.vd_name, VDNAMESIZE);
+			if (strlen(name) || vd.vd_lbn || vd.vd_nbytes)
+				printf("%8d  %8d  %s\n",
+					vd.vd_lbn,
+					vd.vd_nbytes,
+					name
+				);
+		}
+			
+		exit(0);
+	}
 	
 	efs_t *ctx = NULL;
 	efs_err_t erc;
@@ -479,6 +543,7 @@ noreturn static void usage(void)
 "\n"
 "  -h       print this help text\n"
 "  -l       list files without extracting\n"
+"  -L       list partitions and bootfiles\n"
 "  -p NUM   use partition number (default: 7)\n"
 "  -P       also extract with file permissions\n"
 "  -q       do not show file listing while extracting\n"

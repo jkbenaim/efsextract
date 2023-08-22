@@ -12,6 +12,7 @@
 
 enum partition_type_e {
 	PT_VOLHDR = 0,
+	PT_BSD = 4,
 	PT_SYSV = 5,
 	PT_VOLUME = 6,
 	PT_EFS = 7,
@@ -46,7 +47,7 @@ struct dvh_dp_s {
 
 struct dvh_vd_s {
 	char vd_name[VDNAMESIZE];
-	int32_t cd_lbn;
+	int32_t vd_lbn;
 	int32_t vd_nbytes;
 } __attribute__((packed));
 
@@ -68,4 +69,6 @@ struct dvh_s {
 	int32_t  vh_fill;
 } __attribute__((packed));
 
+extern struct dvh_vd_s dvh_getFile(struct dvh_s *dvh, int fileNum);
 extern struct dvh_pt_s dvh_getPar(struct dvh_s *dvh, int parNum);
+extern const char *dvh_getNameForType(unsigned parType);

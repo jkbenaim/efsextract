@@ -371,11 +371,13 @@ efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
 	switch (pt.pt_type) {
 	case PT_VOLHDR:
 		/* TODO */
+		(*ctx)->fstype = EFS_FSTYPE_VH;
 		erc = EFS_ERR_PARTYPE;
 		goto out_error;
 		break;
 	case PT_SYSV:
 	case PT_EFS:
+		(*ctx)->fstype = EFS_FSTYPE_EFS;
 		break;
 	default:
 		erc = EFS_ERR_PARTYPE;

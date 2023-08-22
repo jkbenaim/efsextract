@@ -208,13 +208,20 @@ typedef enum {
 	EFS_ERR_PARTYPE,
 } efs_err_t;
 
-typedef struct efx_ctx {
+enum efs_fstype {
+	EFS_FSTYPE_NONE = 0,
+	EFS_FSTYPE_EFS,
+	EFS_FSTYPE_VH,
+};
+
+typedef struct efs_ctx {
 	efs_err_t err;
 	FILE *f;
 	fileslice_t *fs;
 	struct efs_sb sb;
 	size_t nblks;
 	efs_ino_t ipcg;
+	enum efs_fstype fstype;
 } efs_t;
 
 extern const char *efs_strerror(efs_err_t e);
