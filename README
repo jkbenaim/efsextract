@@ -28,6 +28,8 @@ OPTIONS
 
        -l     List files without extracting.
 
+       -L     List partitions and bootfiles.
+
        -p NUM Use partition number NUM (default: 7).
 
        -P     Also extract file permissions.
