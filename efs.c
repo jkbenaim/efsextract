@@ -8,8 +8,7 @@
 #include "efs_internal.h"
 #include "endian.h"
 #include "err.h"
-
-extern char *__progname;
+#include "progname.h"
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(*x))
 
