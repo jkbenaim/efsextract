@@ -84,34 +84,6 @@ struct qent *queue_dequeue(void)
 	return out;
 }
 
-struct qent *queue_dequeue_lowest(void)
-{
-	struct qent *out = head;
-	
-	if (!out) return NULL;
-
-	for (struct qent *cur = head; cur; cur = cur->next) {
-		if (cur->ino < out->ino)
-			out = cur;
-	}
-
-	if (head == out) {
-		head = out->next;
-	}
-	if (tail == out) {
-		tail = out->prev;
-	}
-	if (out->next) {
-		out->next->prev = out->prev;
-	}
-	if (out->prev) {
-		out->prev->next = out->next;
-	}
-	out->next = out->prev = NULL;
-
-	return out;
-}
-
 /*
 void print_ex(struct efs_extent ext)
 {
@@ -327,7 +299,7 @@ int main(int argc, char *argv[])
 
 	queue_enqueue(2, "", "");
 
-	for (struct qent *qe = queue_dequeue_lowest(); qe; free(qe),qe = queue_dequeue_lowest()) {
+	for (struct qent *qe = queue_dequeue(); qe; free(qe),qe = queue_dequeue()) {
 		__label__ nextfile;
 		inode = efs_get_inode(ctx, qe->ino);
 		if (inode.di_version) {
