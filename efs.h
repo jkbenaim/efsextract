@@ -36,6 +36,10 @@ struct efs_stat {
 	int16_t st_nlink;
 	uint16_t st_uid;
 	uint16_t st_gid;
+	int32_t st_size;
+	struct timespec st_atimespec;
+	struct timespec st_mtimespec;
+	struct timespec st_ctimespec;
 };
 
 extern efs_ino_t efs_find_entry(efs_t *efs, const char *name);
@@ -66,3 +70,6 @@ extern void efs_rewind(efs_file_t *file);
 extern void efs_clearerr(efs_file_t *file);
 extern int efs_feof(efs_file_t *file);
 extern int efs_ferror(efs_file_t *file);
+
+extern int efs_stat(efs_t *ctx, const char *pathname, struct efs_stat *statbuf);
+extern int efs_fstat(efs_file_t *file, struct efs_stat *statbuf);

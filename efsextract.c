@@ -160,8 +160,6 @@ int main(int argc, char *argv[])
 	int rc;
 	int parnum = -1;
 
-	char buf[BLKSIZ * 2];
-
 	progname_init(argc, argv);
 	
 	while ((rc = getopt(argc, argv, "hLlp:PqV")) != -1)
@@ -291,10 +289,6 @@ int main(int argc, char *argv[])
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open '%s'", filename);
 	
-	erc = efs_get_blocks(ctx, &buf, 0, 2);
-	if (erc != EFS_ERR_OK)
-		errefs(1, erc, "while reading blocks");
-
 	struct efs_dinode inode;
 
 	queue_enqueue(2, "", "");

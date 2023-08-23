@@ -507,3 +507,39 @@ void efs_rewinddir(efs_dir_t *dirp)
 {
 	/* TODO */
 }
+
+int efs_stati(efs_t *ctx, efs_ino_t ino, struct efs_stat *statbuf)
+{
+	struct efs_dinode dinode;
+	dinode = efs_get_inode(ctx, ino);
+	
+	statbuf->st_ino = ino;
+	statbuf->st_mode = dinode.di_mode;
+	statbuf->st_nlink = dinode.di_nlink;
+	statbuf->st_uid = dinode.di_uid;
+	statbuf->st_gid = dinode.di_gid;
+	statbuf->st_size = dinode.di_size;
+	
+	statbuf->st_atimespec.tv_sec = dinode.di_atime;
+	statbuf->st_atimespec.tv_nsec = 0;
+	
+	statbuf->st_mtimespec.tv_sec = dinode.di_mtime;
+	statbuf->st_mtimespec.tv_nsec = 0;
+	
+	statbuf->st_ctimespec.tv_sec = dinode.di_ctime;
+	statbuf->st_ctimespec.tv_nsec = 0;
+	
+	return 0;
+}
+
+int efs_stat(efs_t *ctx, const char *pathname, struct efs_stat *statbuf)
+{
+	efs_ino_t ino;
+	ino = efs_namei(ctx, pathname);
+	return efs_stati(ctx, ino, statbuf);
+}
+
+int efs_fstat(efs_file_t *file, struct efs_stat *statbuf)
+{
+	return efs_stati(file->ctx, file->ino, statbuf);
+}

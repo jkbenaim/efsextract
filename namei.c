@@ -13,7 +13,6 @@ char *_getfirstpathpart(char *name);
 struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode);
 struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos);
 efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino);
-efs_ino_t efs_namei(efs_t *ctx, char *name);
 efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino);
 
 char *_getfirstpathpart(char *name)
@@ -492,18 +491,6 @@ efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino)
 efs_ino_t efs_namei(efs_t *ctx, char *name)
 {
 	return _efs_namei_aux(ctx, name, EFS_BLK_ROOTINO);
-}
-
-void efs_stati(efs_t *ctx, efs_ino_t ino, struct efs_stat *sb)
-{
-	struct efs_dinode di;
-	di = efs_get_inode(ctx, ino);
-	
-	sb->st_ino = ino;
-	sb->st_mode = di.di_mode;
-	sb->st_nlink = di.di_nlink;
-	sb->st_uid = di.di_uid;
-	sb->st_gid = di.di_gid;
 }
 
 __attribute__((weak))

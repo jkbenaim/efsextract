@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dirent.h>
+#include <time.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -235,3 +236,4 @@ extern efs_err_t efs_open(efs_t **ctx, char *filename, int parnum);
 extern void efs_close(efs_t *ctx);
 extern struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino);
 
+extern efs_ino_t efs_namei(efs_t *ctx, char *name);
