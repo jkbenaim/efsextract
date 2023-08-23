@@ -60,7 +60,7 @@ extern size_t efs_fread(
 	size_t nmemb,
 	efs_file_t *file
 );
-int efs_fseek(
+extern int efs_fseek(
 	efs_file_t *file,
 	long offset,
 	int whence
