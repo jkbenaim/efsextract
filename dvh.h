@@ -1,6 +1,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdio.h>
+#include "efs_err.h"
+#include "fileslice.h"
 
 #define VDNAMESIZE 8
 #define VHMAGIC 0x0be5a941
@@ -69,11 +72,13 @@ struct dvh_s {
 	int32_t  vh_fill;
 } __attribute__((packed));
 
-typedef struct dvh {
+typedef struct dvh_ctx {
 	FILE *f;
+	struct dvh_s dvh;
 } dvh_t;
 
-extern efs_err_t dvh_open(dvh_t **dvh, const char filename);
-extern struct dvh_vd_s dvh_getFile(struct dvh_s *dvh, int fileNum);
-extern struct dvh_pt_s dvh_getPar(struct dvh_s *dvh, int parNum);
+extern efs_err_t dvh_open(dvh_t **ctx, const char *filename);
+extern fileslice_t *dvh_getParSlice(dvh_t *ctx, int parNum);
+extern struct dvh_pt_s dvh_getParInfo(dvh_t *ctx, int parNum);
+extern struct dvh_vd_s dvh_getFileInfo(dvh_t *ctx, int fileNum);
 extern const char *dvh_getNameForType(unsigned parType);

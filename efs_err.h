@@ -17,6 +17,6 @@ typedef enum {
 
 extern const char *efs_strerror(efs_err_t e);
 extern void vwarnefs(efs_err_t e, const char *fmt, va_list args);
-extern noreturn void verrefs(int eval, efs_err_t e, const char *fmt, va_list args);
+extern void verrefs(int eval, efs_err_t e, const char *fmt, va_list args);
 extern void warnefs(efs_err_t e, const char *fmt, ...);
-extern noreturn void errefs(int eval, efs_err_t e, const char *fmt, ...);
+extern void errefs(int eval, efs_err_t e, const char *fmt, ...);

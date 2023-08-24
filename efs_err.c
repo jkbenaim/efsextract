@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "efs_err.h"
+#include "progname.h"
 
 const char *efs_strerror(efs_err_t e)
 {
@@ -39,7 +41,7 @@ void vwarnefs(efs_err_t e, const char *fmt, va_list args)
 	fprintf(stderr, "%s\n", efs_strerror(e));
 }
 
-noreturn void verrefs(int eval, efs_err_t e, const char *fmt, va_list args)
+void verrefs(int eval, efs_err_t e, const char *fmt, va_list args)
 {
 	vwarnefs(e, fmt, args);
 	exit(eval);
@@ -53,7 +55,7 @@ void warnefs(efs_err_t e, const char *fmt, ...)
 	va_end(ap);
 }
 
-noreturn void errefs(int eval, efs_err_t e, const char *fmt, ...)
+void errefs(int eval, efs_err_t e, const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);

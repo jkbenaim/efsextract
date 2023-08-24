@@ -19,12 +19,11 @@
 #include "err.h"
 #include "endian.h"
 #include "hexdump.h"
-#include "noreturn.h"
 #include "progname.h"
 #include "version.h"
 
-noreturn static void tryhelp(void);
-noreturn static void usage(void);
+static void tryhelp(void);
+static void usage(void);
 
 struct qent {
 	struct qent *next;
@@ -494,14 +493,14 @@ nextfile:
 	return EXIT_SUCCESS;
 }
 
-noreturn static void tryhelp(void)
+static void tryhelp(void)
 {
 	(void)fprintf(stderr, "Try `%s -h' for more information.\n",
 		__progname);
 	exit(EXIT_FAILURE);
 }
 
-noreturn static void usage(void)
+static void usage(void)
 {
 	(void)fprintf(stderr, 
 "Usage: %s [OPTION] [FILE]\n"

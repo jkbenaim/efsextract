@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include "efs_err.h"
 #include "fileslice.h"
-#include "noreturn.h"
 
 #define BLKSIZ 512
 #define EFS_BLK_SB	(1)
@@ -210,9 +209,3 @@ typedef struct efs_ctx {
 	efs_ino_t ipcg;
 } efs_t;
 
-extern efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks);
-extern efs_err_t efs_open(efs_t **ctx, fileslice_t *fs, int parnum);
-extern void efs_close(efs_t *ctx);
-extern struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino);
-
-extern efs_ino_t efs_namei(efs_t *ctx, char *name);

@@ -168,33 +168,6 @@ struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
 	return out;
 }
 
-fileslice_t *efs_get_slice_for_par(efs_t *ctx, int parNum)
-{
-	__label__ out_error;
-	int rc;
-	fileslice_t *fs;
-	struct dvh_s dvh;
-	struct dvh_pt_s pt;
-
-	rc = fseek(ctx->f, 0, SEEK_SET);
-	if (rc == -1) goto out_error;
-
-	rc = fread(&dvh, sizeof(dvh), 1, ctx->f);
-	if (rc != 1) goto out_error;
-
-	pt = dvh_getPar(&dvh, parNum);
-	ctx->nblks = pt.pt_nblks;
-	if (pt.pt_nblks == 0) goto out_error;
-	//printf("pt.pt_nblks = %u\n", pt.pt_nblks);
-	//printf("pt.pt_firstlbn = %u\n", pt.pt_firstlbn);
-
-	fs = fsopen(ctx->f, BLKSIZ * pt.pt_firstlbn, BLKSIZ * pt.pt_nblks);
-	return fs;
-
-out_error:
-	return NULL;
-}
-
 efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 {
 	__label__ out_error, out_ok;
@@ -233,7 +206,6 @@ efs_err_t efs_open(efs_t **ctx, fileslice_t *fs)
 		erc = EFS_ERR_NOMEM;
 		goto out_error;
 	}
-	(*ctx)->err = EFS_ERR_OK;
 
 	(*ctx)->fs = fs;
 
@@ -253,7 +225,7 @@ efs_err_t efs_open(efs_t **ctx, fileslice_t *fs)
 	/* Convert superblock to native endianness */
 	(*ctx)->sb = efstoh((*ctx)->sb);
 	
-	return (*ctx)->err = EFS_ERR_OK;
+	return EFS_ERR_OK;
 out_error:
 	if (*ctx) free(*ctx);
 	*ctx = NULL;

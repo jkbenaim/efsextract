@@ -9,24 +9,23 @@
 #include "err.h"
 #include "hexdump.h"
 
-char *_getfirstpathpart(char *name);
+char *_getfirstpathpart(const char *name);
 struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode);
 struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos);
-efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino);
+efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino);
 efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino);
 
-char *_getfirstpathpart(char *name)
+const char *_getfirstpathpart(const char *name)
 {
 	char *ptr;
 	char *newname;
-	
-	if (!name)
-		return NULL;
-	ptr = strchr(name, '/');
-	if (!ptr)
-		return name;
+
+	if (!name) return NULL;
 	newname = strdup(name);
-	*(ptr - name + newname) = '\0';
+	ptr = strchr(newname, '/');
+	if (ptr)
+		*ptr = '\0';
+	
 	return newname;
 }
 
@@ -456,7 +455,7 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	return out;
 }
 
-efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino)
+efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino)
 {
 	struct efs_dirent *dirents;
 	char *firstpart;
@@ -488,46 +487,8 @@ efs_ino_t _efs_namei_aux(efs_t *ctx, char *name, efs_ino_t ino)
 	return -1;
 }
 
-efs_ino_t efs_namei(efs_t *ctx, char *name)
+efs_ino_t efs_namei(efs_t *ctx, const char *name)
 {
 	return _efs_namei_aux(ctx, name, EFS_BLK_ROOTINO);
 }
 
-__attribute__((weak))
-int main(int argc, char *argv[])
-{
-	efs_err_t erc;
-	efs_t *ctx;
-	efs_ino_t ino;
-	int rc;
-	char *filename = NULL;
-	
-	while ((rc = getopt(argc, argv, "f:")) != -1)
-		switch (rc) {
-		case 'f':
-			filename = optarg;
-			break;
-		default:
-			errx(1, "unknown option");
-			break;
-		}
-	if (!filename)
-		errx(1, "specify a file with -f");
-	
-	erc = efs_open(&ctx, filename, 7);
-	if (erc != EFS_ERR_OK)
-		errefs(1, erc, "couldn't open file '%s'", filename);
-	ino = efs_namei(ctx, "catman/p_man/cat3/Xm/XmFileSelectionBoxGetChild.z");
-	printf("inode: %x\n", ino);
-	
-	efs_file_t *f = NULL;
-	f = efs_fopen(ctx, "unix", "r");
-	if (!f)
-		err(1, "couldn't open efs file");
-	efs_file_fclose(f);
-	f = NULL;
-	
-	efs_close(ctx);
-	ctx = NULL;
-	return 0;
-}
