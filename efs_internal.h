@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "efs_err.h"
 #include "fileslice.h"
 #include "noreturn.h"
 
@@ -196,19 +197,6 @@ struct efs_sb efstoh (struct efs_sb efs);
 struct efs_dinode efs_dinodetoh(struct efs_dinode inode);
 struct efs_extent efs_extenttoh(struct efs_extent extent);
 
-typedef enum {
-	EFS_ERR_OK = 0,
-	EFS_ERR_INVAL,
-	EFS_ERR_NOENT,
-	EFS_ERR_NOMEM,
-	EFS_ERR_READFAIL,
-	EFS_ERR_NOPAR,
-	EFS_ERR_NOVH,
-	EFS_ERR_BADVH,
-	EFS_ERR_SBMAGIC,
-	EFS_ERR_PARTYPE,
-} efs_err_t;
-
 enum efs_fstype {
 	EFS_FSTYPE_NONE = 0,
 	EFS_FSTYPE_EFS,
@@ -216,23 +204,14 @@ enum efs_fstype {
 };
 
 typedef struct efs_ctx {
-	efs_err_t err;
-	FILE *f;
 	fileslice_t *fs;
 	struct efs_sb sb;
 	size_t nblks;
 	efs_ino_t ipcg;
-	enum efs_fstype fstype;
 } efs_t;
 
-extern const char *efs_strerror(efs_err_t e);
-extern void vwarnefs(efs_err_t e, const char *fmt, va_list args);
-extern noreturn void verrefs(int eval, efs_err_t e, const char *fmt, va_list args);
-extern void warnefs(efs_err_t e, const char *fmt, ...);
-extern noreturn void errefs(int eval, efs_err_t e, const char *fmt, ...);
-
 extern efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks);
-extern efs_err_t efs_open(efs_t **ctx, char *filename, int parnum);
+extern efs_err_t efs_open(efs_t **ctx, fileslice_t *fs, int parnum);
 extern void efs_close(efs_t *ctx);
 extern struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino);
 

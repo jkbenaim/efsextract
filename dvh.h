@@ -69,6 +69,11 @@ struct dvh_s {
 	int32_t  vh_fill;
 } __attribute__((packed));
 
+typedef struct dvh {
+	FILE *f;
+} dvh_t;
+
+extern efs_err_t dvh_open(dvh_t **dvh, const char filename);
 extern struct dvh_vd_s dvh_getFile(struct dvh_s *dvh, int fileNum);
 extern struct dvh_pt_s dvh_getPar(struct dvh_s *dvh, int parNum);
 extern const char *dvh_getNameForType(unsigned parType);

@@ -1,5 +1,5 @@
 target  ?= efsextract
-objects := dvh.o efsextract.o efs.o fileslice.o hexdump.o namei.o progname.o
+objects := dvh.o efsextract.o efs.o efs_err.o fileslice.o hexdump.o namei.o progname.o
 CFLAGS  += -std=gnu99 -Wall
 
 .PHONY: all
@@ -24,5 +24,3 @@ README: ${target}.1
 
 $(target): $(objects)
 	$(CC) ${objects} ${LDLIBS} -o $@
-
-namei: namei.o efs.o dvh.o fileslice.o hexdump.o

@@ -168,67 +168,6 @@ struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
 	return out;
 }
 
-
-const char *efs_strerror(efs_err_t e)
-{
-	switch (e) {
-	case EFS_ERR_OK:
-		return "no error";
-	case EFS_ERR_INVAL:
-		return "invalid argument";
-	case EFS_ERR_NOENT:
-		return "no such file or directory";
-	case EFS_ERR_NOMEM:
-		return "out of memory";
-	case EFS_ERR_READFAIL:
-		return "read error";
-	case EFS_ERR_NOPAR:
-		return "requested partition not found";
-	case EFS_ERR_NOVH:
-		return "volume header not found";
-	case EFS_ERR_BADVH:
-		return "volume header checksum failure";
-	case EFS_ERR_SBMAGIC:
-		return "superblock not found";
-	case EFS_ERR_PARTYPE:
-		return "unrecognized partition type";
-	default:
-		return "";
-	}
-}
-
-void vwarnefs(efs_err_t e, const char *fmt, va_list args)
-{
-	fprintf(stderr, "%s: ", __progname);
-	if (fmt) {
-		vfprintf(stderr, fmt, args);
-		fprintf(stderr, ": ");
-	}
-	fprintf(stderr, "%s\n", efs_strerror(e));
-}
-
-noreturn void verrefs(int eval, efs_err_t e, const char *fmt, va_list args)
-{
-	vwarnefs(e, fmt, args);
-	exit(eval);
-}
-
-void warnefs(efs_err_t e, const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-	vwarnefs(e, fmt, ap);
-	va_end(ap);
-}
-
-noreturn void errefs(int eval, efs_err_t e, const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-	verrefs(eval, e, fmt, ap);
-	va_end(ap);
-}
-
 fileslice_t *efs_get_slice_for_par(efs_t *ctx, int parNum)
 {
 	__label__ out_error;
@@ -256,31 +195,11 @@ out_error:
 	return NULL;
 }
 
-//#define USE_CACHE 1
-#if USE_CACHE
-#define NUMCACHEBLOCKS (11)
-uint8_t blocks[NUMCACHEBLOCKS][BLKSIZ];
-long blockstat[NUMCACHEBLOCKS];
-int blocknext;
-#endif
-
 efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 {
 	__label__ out_error, out_ok;
 	int rc;
 	efs_err_t erc;
-
-#if USE_CACHE
-	if (nblks == 1) {
-		// for 1-block reads, we cache blocks
-		for (size_t i = 0; i < NUMCACHEBLOCKS; i++) {
-			if (blockstat[i] == firstlbn) {
-				memcpy(buf, blocks[i], BLKSIZ);
-				goto out_ok;
-			}
-		}
-	}
-#endif
 
 	rc = fsseek(ctx->fs, BLKSIZ * firstlbn, SEEK_SET);
 	if (rc == -1) {
@@ -294,16 +213,6 @@ efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 		erc = EFS_ERR_READFAIL;
 		goto out_error;
 	}
-
-#if USE_CACHE
-	if (nblks == 1) {
-		memcpy(blocks[blocknext], buf, BLKSIZ);
-		blockstat[blocknext] = firstlbn;
-		blocknext++;
-		if (blocknext == NUMCACHEBLOCKS)
-			blocknext = 0;
-	}
-#endif
 	goto out_ok;
 
 out_ok:
@@ -312,20 +221,13 @@ out_error:
 	return erc;
 }
 
-efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
+efs_err_t efs_open(efs_t **ctx, fileslice_t *fs)
 {
 	__label__ out_error;
 	efs_err_t erc;
 	int rc;
-	struct dvh_s dvh;
 
-#if USE_CACHE
-	for (size_t i = 0; i < NUMCACHEBLOCKS; i++) {
-		blockstat[i] = -1;
-	}
-	blocknext = 0;
-#endif
-
+	/* Allocate efs context */
 	*ctx = calloc(1, sizeof(efs_t));
 	if (!*ctx) {
 		erc = EFS_ERR_NOMEM;
@@ -333,63 +235,7 @@ efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
 	}
 	(*ctx)->err = EFS_ERR_OK;
 
-	(*ctx)->f = fopen(filename, "rb");
-	if (!(*ctx)->f) {
-		erc = EFS_ERR_NOENT;
-		goto out_error;
- 	}
-
-	/* Read volume header */
-	rc = fread(&dvh, sizeof(dvh), 1, (*ctx)->f);
-	if (rc != 1) {
-		erc = EFS_ERR_READFAIL;
-		goto out_error;
-	}
-	
-	/* Validate volume header magic */
-	if (be32toh(dvh.vh_magic) != VHMAGIC) {
-		erc = EFS_ERR_NOVH;
-		goto out_error;
-	}
-	
-	/* Validate volume header checksum */
-	uint32_t sum = 0;
-	uint32_t words[128];
-	memcpy(&words, &dvh, sizeof(words));
-	for (size_t i = 0; i < ARRAY_SIZE(words); i++) {
-		sum += be32toh(words[i]);
-	}
-	if (sum != 0) {
-		erc = EFS_ERR_BADVH;
-		goto out_error;
-	}
-	
-	/* Get type for par */
-	struct dvh_pt_s pt;
-	pt = dvh_getPar(&dvh, parnum);
-	switch (pt.pt_type) {
-	case PT_VOLHDR:
-		/* TODO */
-		(*ctx)->fstype = EFS_FSTYPE_VH;
-		erc = EFS_ERR_PARTYPE;
-		goto out_error;
-		break;
-	case PT_SYSV:
-	case PT_EFS:
-		(*ctx)->fstype = EFS_FSTYPE_EFS;
-		break;
-	default:
-		erc = EFS_ERR_PARTYPE;
-		goto out_error;
-		break;
-	}
-	
-	/* Open par slice */
-	(*ctx)->fs = efs_get_slice_for_par(*ctx, parnum);
-	if (!((*ctx)->fs)) {
-		erc = EFS_ERR_NOPAR;
-		goto out_error;
-	}
+	(*ctx)->fs = fs;
 
 	/* Read superblock */
 	rc = efs_get_blocks(*ctx, &(*ctx)->sb, 1, 1);
@@ -406,22 +252,6 @@ efs_err_t efs_open(efs_t **ctx, char *filename, int parnum)
 
 	/* Convert superblock to native endianness */
 	(*ctx)->sb = efstoh((*ctx)->sb);
-
-/*
-	mkfs_efs: /dev/dsk/dks0d5s7: blocks=486400 inodes=49856
-	mkfs_efs: /dev/dsk/dks0d5s7: sectors=64 cgfsize=25593
-	mkfs_efs: /dev/dsk/dks0d5s7: cgalign=1 ialign=1 ncg=19
-	mkfs_efs: /dev/dsk/dks0d5s7: firstcg=121 cgisize=656
-	mkfs_efs: /dev/dsk/dks0d5s7: bitmap blocks=119
-*/
-#if 0
-	struct efs_sb_s *sb = &(*ctx)->sb;
-	printf("blocks=%lu inodes=%u\n", (*ctx)->nblks, sb->fs_ncg * sb->fs_cgisize * 4);
-	printf("sectors=%u cgfsize=%u\n", sb->fs_sectors, sb->fs_cgfsize);
-	printf("cgalign=? ialign=? ncg=%u\n", sb->fs_ncg);
-	printf("firstcg=%u cgisize=%u\n", sb->fs_firstcg, sb->fs_cgisize);
-	printf("bitmap blocks=%u\n", (sb->fs_bmsize + BLKSIZ - 1)/ BLKSIZ);
-#endif
 	
 	return (*ctx)->err = EFS_ERR_OK;
 out_error:
@@ -434,7 +264,6 @@ void efs_close(efs_t *ctx)
 {
 	if (!ctx) return;
 	fsclose(ctx->fs);
-	fclose(ctx->f);
 	free(ctx);
 }
 
