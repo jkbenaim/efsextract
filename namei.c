@@ -9,7 +9,7 @@
 #include "err.h"
 #include "hexdump.h"
 
-char *_getfirstpathpart(const char *name);
+const char *_getfirstpathpart(const char *name);
 struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode);
 struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos);
 efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino);
@@ -458,7 +458,7 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino)
 {
 	struct efs_dirent *dirents;
-	char *firstpart;
+	const char *firstpart;
 	
 	dirents = _efs_read_dirblks(ctx, ino);
 	if (!dirents)
