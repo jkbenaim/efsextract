@@ -1,6 +1,6 @@
 target  ?= efsextract
 objects := dvh.o efsextract.o efs.o efs_err.o fileslice.o hexdump.o namei.o progname.o
-CFLAGS  += -std=gnu99 -Wall
+CFLAGS  += -std=gnu99 -Wall -ggdb
 
 .PHONY: all
 all:	$(target) README

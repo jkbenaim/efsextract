@@ -69,6 +69,16 @@ out_error:
 	return erc;
 }
 
+efs_err_t dvh_close(dvh_t *ctx)
+{
+	if (ctx) {
+		fclose(ctx->f);
+		free(ctx);
+	}
+	
+	return EFS_ERR_OK;
+}
+
 void _dvh_ntoh(struct dvh_s *dvh)
 {
 	dvh->vh_magic = be32toh(dvh->vh_magic);

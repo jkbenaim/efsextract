@@ -78,6 +78,7 @@ typedef struct dvh_ctx {
 } dvh_t;
 
 extern efs_err_t dvh_open(dvh_t **ctx, const char *filename);
+extern efs_err_t dvh_close(dvh_t *ctx);
 extern fileslice_t *dvh_getParSlice(dvh_t *ctx, int parNum);
 extern struct dvh_pt_s dvh_getParInfo(dvh_t *ctx, int parNum);
 extern struct dvh_vd_s dvh_getFileInfo(dvh_t *ctx, int fileNum);

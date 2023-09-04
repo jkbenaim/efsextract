@@ -460,6 +460,9 @@ efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino)
 	struct efs_dirent *dirents;
 	const char *firstpart;
 	
+	printf("_efs_namei_aux: ctx %p, name '%s', ino %u\n",
+	       ctx, name, ino);
+	
 	dirents = _efs_read_dirblks(ctx, ino);
 	if (!dirents)
 		return -1;
@@ -469,6 +472,11 @@ efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino)
 		return -1;
 	//printf("firstpart: '%s'\n", firstpart);
 	
+#if 1
+	if (!strlen(firstpart))
+		return ino;
+#endif
+
 	struct efs_dirent *de;
 	for (de = dirents; de->d_ino; de++) {
 		if (!strcmp(de->d_name, firstpart)) {
@@ -476,8 +484,11 @@ efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino)
 			if (firstpart == name) {
 				return de->d_ino;
 			} else {
-				char *ptr = strchr(name, '/') + 1;
-				return _efs_namei_aux(ctx, ptr, de->d_ino);
+				char *ptr = strchr(name, '/');
+				if (!ptr)
+					return _efs_namei_aux(ctx, name, de->d_ino);
+				else
+					return _efs_namei_aux(ctx, ptr, de->d_ino);
 			}
 		}
 	}

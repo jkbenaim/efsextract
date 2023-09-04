@@ -39,7 +39,7 @@ struct efs_s {
 } __attribute__((packed));
 */
 
-struct efs_sb efstoh (struct efs_sb efs)
+struct efs_sb efstoh(struct efs_sb efs)
 {
 	struct efs_sb out = {0,};
 
@@ -288,13 +288,28 @@ efs_ino_t efs_find_entry(efs_t *efs, const char *name)
 
 efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 {
-	/* TODO */
+	__label__ out_ok, out_error;
+	efs_dir_t *out;
+	efs_ino_t ino;
+	
+	out = calloc(sizeof(*out), 1);
+	if (!out) goto out_error;
+	
+	ino = efs_namei(efs, dirname);
+	printf("--ino: %u\n", ino);
+	if (ino == -1) goto out_error;
+	
+out_ok:
+	return out;
+out_error:
+	free(out);
 	return NULL;
 }
 
 int efs_closedir(efs_dir_t *dirp)
 {
 	/* TODO */
+	free(dirp);
 	return 0;
 }
 
