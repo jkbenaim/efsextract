@@ -8,6 +8,7 @@ struct efs_dirent {
 };
 
 typedef struct efs_dir {
+	
 	/*
 	 * readdir() returns a pointer to a dirent.
 	 * XPG3 says that the data at the pointer can be overwritten
@@ -15,7 +16,11 @@ typedef struct efs_dir {
 	 * Therefore, define a dirent here, and return a pointer to
 	 * it for each readdir() call.
 	 */
-	struct efs_dirent dirent;
+	struct efs_dirent *dirent;
+	
+	/* private */
+	struct efs_dirent *_dirent_memobj;
+	efs_ino_t ino;
 } efs_dir_t;
 
 typedef struct efs_file {
@@ -53,6 +58,7 @@ extern int efs_feof(efs_file_t *file);
 extern int efs_ferror(efs_file_t *file);
 
 extern int efs_stat(efs_t *ctx, const char *pathname, struct efs_stat *statbuf);
+extern int efs_stati(efs_t *ctx, efs_ino_t ino, struct efs_stat *statbuf);
 extern int efs_fstat(efs_file_t *file, struct efs_stat *statbuf);
 
 extern efs_ino_t efs_find_entry(efs_t *efs, const char *name);
@@ -67,3 +73,5 @@ extern void efs_close(efs_t *ctx);
 extern struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino);
 
 extern efs_ino_t efs_namei(efs_t *ctx, const char *name);
+
+extern struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino);

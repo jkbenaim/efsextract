@@ -12,22 +12,8 @@
 const char *_getfirstpathpart(const char *name);
 struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode);
 struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos);
-efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino);
+efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name);
 efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino);
-
-const char *_getfirstpathpart(const char *name)
-{
-	char *ptr;
-	char *newname;
-
-	if (!name) return NULL;
-	newname = strdup(name);
-	ptr = strchr(newname, '/');
-	if (ptr)
-		*ptr = '\0';
-	
-	return newname;
-}
 
 struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 {
@@ -222,8 +208,9 @@ size_t efs_fread(
 	return out;
 }
 
-efs_file_t *efs_fopen(
+efs_file_t *efs_fopenat(
 	efs_t *ctx,
+	efs_dir_t *dirp,
 	const char *path,
 	const char *mode
 ) {
@@ -232,7 +219,7 @@ efs_file_t *efs_fopen(
 	efs_ino_t ino;
 	efs_file_t *out = NULL;
 	
-	ino = efs_namei(ctx, path);
+	ino = _efs_nameiat(ctx, dirp->ino, path);
 	if (ino == (efs_ino_t)(-1)) {
 		errno = ENOENT;
 		goto out_error;
@@ -249,6 +236,16 @@ out_ok:
 out_error:
 	free(out);
 	return NULL;
+}
+
+efs_file_t *efs_fopen(
+		      efs_t *ctx,
+		      const char *path,
+		      const char *mode
+) {
+	efs_dir_t dir;
+	dir.ino = EFS_BLK_ROOTINO;
+	return efs_fopenat(ctx, &dir, path, mode);
 }
 
 efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino)
@@ -296,7 +293,7 @@ out_error:
 	return NULL;
 }
 
-int efs_file_fclose(efs_file_t *file)
+int efs_fclose(efs_file_t *file)
 {
 	free(file->exs);
 	free(file);
@@ -450,46 +447,81 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	out = realloc(out, (out_used + 1) * sizeof(struct efs_dirent));
 	out[out_used].d_ino = 0;
 	
-	efs_file_fclose(file);
+	efs_fclose(file);
 	file = NULL;
 	return out;
 }
 
-efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino)
-{
-	struct efs_dirent *dirents;
-	const char *firstpart;
+/* returns the leftmost path part in firstpart[],
+ * 
+ */
+int _efs_nextpath(
+	const char *in,
+	char *firstpart,
+	const char **remaining
+) {
+	const char *t;
+	off_t len;
 	
-	printf("_efs_namei_aux: ctx %p, name '%s', ino %u\n",
+	/* name too large */
+	if (strlen(in) > EFS_MAX_NAME) {
+		return -1;
+	}
+	
+	/* empty name */
+	if (!strcmp("", in) || !strcmp("/", in)) {
+		strcpy(firstpart, ".");
+		*remaining = NULL;
+		return 0;
+	}
+	
+	/* no slashes */
+	t = strchr(in, '/');
+	if (!t) {
+		strncpy(firstpart, in, EFS_MAX_NAME);
+		*remaining = NULL;
+		return 0;
+	}
+	
+	len = t - in;
+	if (len > EFS_MAX_NAME) {
+		return -1;
+	}
+	
+	strncpy(firstpart, in, len);
+	firstpart[len] = '\0';
+	*remaining = (const char *)(t + 1);
+	return 0;
+}
+
+efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
+{
+	int rc;
+	struct efs_dirent *dirents;
+	char firstpart[EFS_MAX_NAME + 1];
+	const char *remaining;
+	
+	printf("_efs_nameiat: ctx %p, name '%s', ino %u\n",
 	       ctx, name, ino);
 	
 	dirents = _efs_read_dirblks(ctx, ino);
 	if (!dirents)
 		return -1;
 	
-	firstpart = _getfirstpathpart(name);
-	if (!firstpart)
+	rc = _efs_nextpath(name, firstpart, &remaining);
+	if (rc == -1)
 		return -1;
-	//printf("firstpart: '%s'\n", firstpart);
-	
-#if 1
-	if (!strlen(firstpart))
-		return ino;
-#endif
+	printf("firstpart: '%s'\n", firstpart);
+	printf("remaining: '%s'\n", remaining);
 
 	struct efs_dirent *de;
 	for (de = dirents; de->d_ino; de++) {
 		if (!strcmp(de->d_name, firstpart)) {
-			//printf("found it at inode %x\n", de->d_ino);
-			if (firstpart == name) {
+			printf("found it at inode %x\n", de->d_ino);
+			if (!remaining)
 				return de->d_ino;
-			} else {
-				char *ptr = strchr(name, '/');
-				if (!ptr)
-					return _efs_namei_aux(ctx, name, de->d_ino);
-				else
-					return _efs_namei_aux(ctx, ptr, de->d_ino);
-			}
+			else
+				return _efs_nameiat(ctx, de->d_ino, remaining);
 		}
 	}
 	
@@ -500,6 +532,6 @@ efs_ino_t _efs_namei_aux(efs_t *ctx, const char *name, efs_ino_t ino)
 
 efs_ino_t efs_namei(efs_t *ctx, const char *name)
 {
-	return _efs_namei_aux(ctx, name, EFS_BLK_ROOTINO);
+	return _efs_nameiat(ctx, EFS_BLK_ROOTINO, name);
 }
 

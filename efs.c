@@ -289,39 +289,45 @@ efs_ino_t efs_find_entry(efs_t *efs, const char *name)
 efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 {
 	__label__ out_ok, out_error;
-	efs_dir_t *out;
-	efs_ino_t ino;
+	efs_dir_t *dirp;
 	
-	out = calloc(sizeof(*out), 1);
-	if (!out) goto out_error;
+	dirp = calloc(sizeof(*dirp), 1);
+	if (!dirp) goto out_error;
 	
-	ino = efs_namei(efs, dirname);
-	printf("--ino: %u\n", ino);
-	if (ino == -1) goto out_error;
+	dirp->ino = efs_namei(efs, dirname);
+	printf("--ino: %u\n", dirp->ino);
+	if (dirp->ino == -1) goto out_error;
+	
+	dirp->dirent = _efs_read_dirblks(efs, dirp->ino);
+	if (!dirp->dirent)
+		goto out_error;
+	dirp->_dirent_memobj = dirp->dirent;
 	
 out_ok:
-	return out;
+	return dirp;
 out_error:
-	free(out);
+	free(dirp);
 	return NULL;
 }
 
 int efs_closedir(efs_dir_t *dirp)
 {
-	/* TODO */
+	free(dirp->_dirent_memobj);
 	free(dirp);
 	return 0;
 }
 
 struct efs_dirent *efs_readdir(efs_dir_t *dirp)
 {
-	/* TODO */
-	return NULL;
+	if (dirp->dirent->d_ino)
+		return dirp->dirent ++;
+	else
+		return NULL;
 }
 
 void efs_rewinddir(efs_dir_t *dirp)
 {
-	/* TODO */
+	dirp->dirent = dirp->_dirent_memobj;
 }
 
 int efs_stati(efs_t *ctx, efs_ino_t ino, struct efs_stat *statbuf)

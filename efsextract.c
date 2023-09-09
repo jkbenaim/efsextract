@@ -83,6 +83,74 @@ struct qent *queue_dequeue(void)
 	return out;
 }
 
+void mode2str(char *str, uint16_t mode)
+{
+	strcpy(str, "----------");
+	
+	switch (mode & IFMT) {
+	case IFIFO:
+		str[0] = 'p';
+		break;
+	case IFCHR:
+		str[0] = 'c';
+		break;
+	case IFDIR:
+		str[0] = 'd';
+		break;
+	case IFBLK:
+		str[0] = 'b';
+		break;
+	case IFREG:
+		str[0] = '-';
+		break;
+	case IFLNK:
+		str[0] = 'l';
+		break;
+	case IFSOCK:
+		str[0] = 's';
+		break;
+	default:
+		str[0] = '?';
+		break;
+	}
+	
+	if (mode & 0400) str[1] = 'r';
+	if (mode & 0200) str[2] = 'w';
+	if (mode & 0100) str[3] = 'x';
+	if (mode & 0040) str[4] = 'r';
+	if (mode & 0020) str[5] = 'w';
+	if (mode & 0010) str[6] = 'x';
+	if (mode & 0004) str[7] = 'r';
+	if (mode & 0002) str[8] = 'w';
+	if (mode & 0001) str[9] = 'x';
+	str[10] = '\0';
+}
+
+int mode2color(uint16_t mode)
+{
+	switch (mode & IFMT) {
+	case IFIFO:
+		return 33;
+	case IFCHR:
+		return 33;
+	case IFDIR:
+		return 34;
+	case IFBLK:
+		return 33;
+	case IFREG:
+		if (mode & 0111)
+			return 32;
+		else
+			return -1;
+	case IFLNK:
+		return 36;
+	case IFSOCK:
+		return 35;
+	default:
+		return -1;
+	}
+}
+
 int qflag = 0;
 int lflag = 0;
 int Pflag = 0;
@@ -231,10 +299,38 @@ int main(int argc, char *argv[])
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open efs in '%s'", filename);
 	
-	efs_dir_t *dir;
-	dir = efs_opendir(efs, "WhatsNew/");
-	printf("%p\n", dir);
-	efs_closedir(dir);
+	efs_dir_t *dirp;
+	dirp = efs_opendir(efs, "");
+	
+	printf("   ino        mode      size  name\n");
+	printf("------  ----------  --------  ------------\n");
+	struct efs_dirent *de;
+	while (de = efs_readdir(dirp)) {
+		struct efs_stat sb;
+		char mode[11];
+		rc = efs_stati(efs, de->d_ino, &sb);
+		if (rc == -1)
+			err(1, "couldn't get stat for '%s'", de->d_name);
+		mode2str(mode, sb.st_mode);
+		int color = mode2color(sb.st_mode);
+		if (color == -1)
+			printf("%6d  %s  %8d  %s\n",
+				sb.st_ino,
+				mode,
+				sb.st_size,
+				de->d_name
+			);
+		else
+			printf("%6d  %s  %8d  \e[01;%2dm%s\e[00m\n",
+				sb.st_ino,
+				mode,
+				sb.st_size,
+				color,
+				de->d_name
+			);
+	}
+	
+	efs_closedir(dirp);
 	
 	efs_close(efs);
 	dvh_close(dvh);
