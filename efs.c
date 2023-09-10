@@ -285,6 +285,15 @@ efs_ino_t efs_find_entry(efs_t *efs, const char *name)
 /*
  * Directory functions.
  */
+ 
+int compar(const void *a, const void *b)
+{
+	struct efs_dirent *de_a, *de_b;
+	de_a = (struct efs_dirent *)a;
+	de_b = (struct efs_dirent *)b;
+	
+	return strcmp(de_a->d_name, de_b->d_name);
+}
 
 efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 {
@@ -302,6 +311,13 @@ efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 	if (!dirp->dirent)
 		goto out_error;
 	dirp->_dirent_memobj = dirp->dirent;
+	
+	size_t nel = 0;
+	for (typeof(dirp->dirent) de = dirp->dirent; de->d_ino; de++) {
+		nel++;
+	}
+	
+	qsort(dirp->dirent, nel, sizeof(struct efs_dirent), compar);
 	
 out_ok:
 	return dirp;
