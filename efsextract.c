@@ -301,6 +301,7 @@ int main(int argc, char *argv[])
 	
 	efs_dir_t *dirp;
 	dirp = efs_opendir(efs, "");
+	if (!dirp) errx(1, "couldn't open root directory");
 	
 	printf("   ino        mode      size  name\n");
 	printf("------  ----------  --------  ------------\n");
