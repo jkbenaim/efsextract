@@ -517,12 +517,13 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 
 	struct efs_dirent *de;
 	for (de = dirents; de->d_ino; de++) {
+		efs_ino_t got = be32toh(de->d_ino);
 		if (!strcmp(de->d_name, firstpart)) {
-			printf("found it at inode %x\n", de->d_ino);
+			printf("found it at inode %x\n", got);
 			if (!remaining)
-				return de->d_ino;
+				return got;
 			else
-				return _efs_nameiat(ctx, de->d_ino, remaining);
+				return _efs_nameiat(ctx, got, remaining);
 		}
 	}
 	
