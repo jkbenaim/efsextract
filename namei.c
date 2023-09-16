@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include "efs.h"
 #include "efs_internal.h"
+#include "endian.h"
 #include "err.h"
 #include "hexdump.h"
 
@@ -413,7 +414,7 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 		memset(&dirblk, 0xab, sizeof(dirblk));
 		sRc = efs_fread(&dirblk, sizeof(dirblk), 1, file);
 		if (sRc != 1) errx(1, "while reading dirblk blk");
-		if (dirblk.magic != EFS_DIRBLK_MAGIC) {
+		if (dirblk.magic != htobe32(EFS_DIRBLK_MAGIC)) {
 			warnx("skipping block %u", blk);
 			hexdump(&dirblk, BLKSIZ);
 			continue;
