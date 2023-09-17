@@ -428,7 +428,7 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 				dent = (struct efs_dent *)((uint8_t *)(&dirblk) + slotOffset);
 				memcpy(&de.d_name, dent->d_name, dent->d_namelen);
 				de.d_name[dent->d_namelen] = '\0';
-				de.d_ino = dent->l;
+				de.d_ino = be32toh(dent->l);
 				//printf("%8x  %s\n", de.d_ino, de.d_name);
 				
 				/* add dirent */
@@ -517,13 +517,12 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 
 	struct efs_dirent *de;
 	for (de = dirents; de->d_ino; de++) {
-		efs_ino_t got = be32toh(de->d_ino);
 		if (!strcmp(de->d_name, firstpart)) {
-			printf("found it at inode %x\n", got);
+			printf("found it at inode %x\n", de->d_ino);
 			if (!remaining)
-				return got;
+				return de->d_ino;
 			else
-				return _efs_nameiat(ctx, got, remaining);
+				return _efs_nameiat(ctx, de->d_ino, remaining);
 		}
 	}
 	
