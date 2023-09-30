@@ -64,6 +64,7 @@ efs_err_t dvh_open(dvh_t **ctx, const char *filename)
 	return EFS_ERR_OK;
 	
 out_error:
+	if (*ctx && (*ctx)->f) fclose((*ctx)->f);
 	if (*ctx) free(*ctx);
 	*ctx = NULL;
 	return erc;

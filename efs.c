@@ -318,6 +318,8 @@ efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 	}
 	
 	qsort(dirp->dirent, nel, sizeof(struct efs_dirent), compar);
+
+	goto out_ok;
 	
 out_ok:
 	return dirp;

@@ -22,6 +22,11 @@
 #include "progname.h"
 #include "version.h"
 
+int qflag = 0;
+int lflag = 0;
+int Pflag = 0;
+int Lflag = 0;
+
 static void tryhelp(void);
 static void usage(void);
 
@@ -29,33 +34,39 @@ struct qent {
 	struct qent *next;
 	struct qent *prev;
 	char *path;
-	efs_ino_t ino;
 };
 struct qent *head = NULL;
 struct qent *tail = NULL;
 
+char *mkpath(char *path, char *name)
+{
+	int rc;
+	char *out;
+
+	if (strlen(path) == 0) {
+		out = strdup(name);
+	} else {
+		size_t stringsize = strlen(path) + strlen("/") + strlen(name) + 1;
+		out = malloc(stringsize);
+		if (!out) err(1, "in malloc");
+
+		rc = snprintf(out, stringsize, "%s/%s", path, name);
+		if (rc >= stringsize)
+			errx(1, "in snprintf");
+		out[stringsize - 1] = '\0';
+	}
+	return out;
+}
+
 /* add to tail of queue */
-int queue_enqueue(efs_ino_t ino, char *path, char *name)
+int queue_enqueue(char *path)
 {
 	struct qent *q;
-	int rc;
+
 	q = calloc(1, sizeof(*q));
 	if (!q) err(1, "in malloc");
 
-	q->ino = ino;
-
-	if (strlen(path) == 0) {
-		q->path = strdup(name);
-	} else {
-		size_t stringsize = strlen(path) + strlen("/") + strlen(name) + 1;
-		q->path = malloc(stringsize);
-		if (!q->path)
-			err(1, "in malloc");
-		rc = snprintf(q->path, stringsize, "%s/%s", path, name);
-		if (rc >= stringsize)
-			errx(1, "in snprintf");
-		q->path[stringsize - 1] = '\0';
-	}
+	q->path = path;
 
 	if (tail)
 		tail->next = q;
@@ -63,6 +74,26 @@ int queue_enqueue(efs_ino_t ino, char *path, char *name)
 	tail = q;
 	if (!head)
 		head = q;
+
+	return 0;
+}
+
+/* add to head of queue */
+int queue_push(char *path)
+{
+	struct qent *q;
+
+	q = calloc(1, sizeof(*q));
+	if (!q) err(1, "in malloc");
+
+	q->path = path;
+
+	if (head)
+		head->prev = q;
+	q->next = head;
+	head = q;
+	if (!tail)
+		tail = q;
 
 	return 0;
 }
@@ -151,10 +182,93 @@ int mode2color(uint16_t mode)
 	}
 }
 
-int qflag = 0;
-int lflag = 0;
-int Pflag = 0;
-int Lflag = 0;
+void emit_regfile(efs_t *efs, const char *path)
+{
+	struct efs_stat sb;
+	int rc;
+	FILE *dst;
+	efs_file_t *src;
+	char blk[BLKSIZ];
+	size_t sz;
+	size_t bytesLeft;
+
+	rc = efs_stat(efs, path, &sb);
+	if (rc == -1)
+		err(1, "couldn't get stat for '%s'", path);
+
+	src = efs_fopen(efs, path, "r");
+	if (!src)
+		errx(1, "couldn't open efs file '%s'", path);
+
+	dst = fopen(path, "w");
+	if (!dst)
+		err(1, "couldn't open destination file '%s'", path);
+
+	for (size_t blockNum = 0; blockNum < (sb.st_size / 512); blockNum++) {
+		sz = efs_fread(blk, BLKSIZ, 1, src);
+		if (sz != 1)
+			err(1, "couldn't read from source file '%s'", path);
+		sz = fwrite(blk, BLKSIZ, 1, dst);
+		if (sz != 1)
+			err(1, "couldn't write to destination file '%s'", path);
+	}
+	bytesLeft = sb.st_size & (BLKSIZ - 1);
+	if (bytesLeft) {
+		sz = efs_fread(blk, bytesLeft, 1, src);
+		if (sz != 1)
+			err(1, "couldn't read from source file '%s'", path);
+		sz = fwrite(blk, bytesLeft, 1, dst);
+		if (sz != 1)
+			err(1, "couldn't write to destination file '%s'", path);
+	}
+
+	efs_fclose(src);
+	fclose(dst);
+
+	unsigned mask;
+	if (Pflag) {
+		mask = 07777;
+	} else {
+		mask = 0777;
+	}
+
+	rc = chmod(path, sb.st_mode & mask);
+	if (rc == -1)
+		err(1, "couldn't set permissions on '%s'", path);
+}
+
+void emit_file(efs_t *efs, const char *path)
+{
+	struct efs_stat sb;
+	int rc;
+
+	rc = efs_stat(efs, path, &sb);
+	if (rc == -1)
+		err(1, "couldn't get stat for '%s'", path);
+
+	switch (sb.st_mode & IFMT) {
+	case IFDIR:
+		rc = mkdir(path, sb.st_mode & 0777);
+		if (rc == -1)
+			err(1, "couldn't make directory '%s'", path);
+		break;
+	case IFREG:
+		emit_regfile(efs, path);
+		break;
+	case IFIFO:
+		break;
+	case IFCHR:
+		break;
+	case IFBLK:
+		break;
+	case IFLNK:
+		break;
+	case IFSOCK:
+		break;
+	default:
+		break;
+	}
+}
 
 int main(int argc, char *argv[])
 {
@@ -219,7 +333,7 @@ int main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 	if (*argv != NULL) {
-		printf("got filename\n");
+		// printf("got filename\n");
 		filename = *argv;
 	} else {
 		warnx("must specify a file");
@@ -298,40 +412,38 @@ int main(int argc, char *argv[])
 	erc = efs_open(&efs, par);
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open efs in '%s'", filename);
-	
-	efs_dir_t *dirp;
-	dirp = efs_opendir(efs, "");
-	if (!dirp) errx(1, "couldn't open root directory");
-	
-	printf("   ino        mode      size  name\n");
-	printf("------  ----------  --------  ------------\n");
-	struct efs_dirent *de;
-	while (de = efs_readdir(dirp)) {
-		struct efs_stat sb;
-		char mode[11];
-		rc = efs_stati(efs, de->d_ino, &sb);
-		if (rc == -1)
-			err(1, "couldn't get stat for '%s'", de->d_name);
-		mode2str(mode, sb.st_mode);
-		int color = mode2color(sb.st_mode);
-		if (color == -1)
-			printf("%6d  %s  %8d  %s\n",
-				sb.st_ino,
-				mode,
-				sb.st_size,
-				de->d_name
-			);
-		else
-			printf("%6d  %s  %8d  \e[01;%2dm%s\e[00m\n",
-				sb.st_ino,
-				mode,
-				sb.st_size,
-				color,
-				de->d_name
-			);
+
+	queue_enqueue(strdup(""));
+
+	struct qent *q;
+	while (q = queue_dequeue()) {
+		efs_dir_t *dirp;
+		dirp = efs_opendir(efs, q->path);
+		if (!dirp) errx(1, "couldn't open directory: '%s'", q->path);
+		struct efs_dirent *de;
+		while (de = efs_readdir(dirp)) {
+			struct efs_stat sb;
+			char *path;
+			rc = efs_stati(efs, de->d_ino, &sb);
+			if (rc == -1)
+				err(1, "couldn't get stat for '%s'", de->d_name);
+			path = mkpath(q->path, de->d_name);
+			if (!path) goto nextfile;
+			if ((sb.st_mode & IFMT) == IFDIR) {
+				if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) {
+					goto nextfile;
+				}
+				queue_push(strdup(path));
+			}
+			if (!lflag)
+				emit_file(efs, path);
+nextfile:
+			free(path);
+		}
+		efs_closedir(dirp);
+		free(q->path);
+		free(q);
 	}
-	
-	efs_closedir(dirp);
 	
 	efs_close(efs);
 	dvh_close(dvh);

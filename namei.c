@@ -502,9 +502,11 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 	char firstpart[EFS_MAX_NAME + 1];
 	const char *remaining;
 	
+	/*
 	printf("_efs_nameiat: ctx %p, name '%s', ino %u\n",
 	       ctx, name, ino);
-	
+	*/
+
 	dirents = _efs_read_dirblks(ctx, ino);
 	if (!dirents)
 		return -1;
@@ -512,13 +514,13 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 	rc = _efs_nextpath(name, firstpart, &remaining);
 	if (rc == -1)
 		return -1;
-	printf("firstpart: '%s'\n", firstpart);
-	printf("remaining: '%s'\n", remaining);
+	// printf("firstpart: '%s'\n", firstpart);
+	// printf("remaining: '%s'\n", remaining);
 
 	struct efs_dirent *de;
 	for (de = dirents; de->d_ino; de++) {
 		if (!strcmp(de->d_name, firstpart)) {
-			printf("found it at inode %x\n", de->d_ino);
+			// printf("found it at inode %x\n", de->d_ino);
 			if (!remaining)
 				return de->d_ino;
 			else
