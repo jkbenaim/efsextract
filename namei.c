@@ -446,7 +446,8 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	
 	/* add one more dirent as a terminator */
 	out = realloc(out, (out_used + 1) * sizeof(struct efs_dirent));
-	out[out_used].d_ino = 0;
+	if (out)
+		out[out_used].d_ino = 0;
 	
 	efs_fclose(file);
 	file = NULL;
@@ -512,19 +513,25 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 		return -1;
 	
 	rc = _efs_nextpath(name, firstpart, &remaining);
-	if (rc == -1)
+	if (rc == -1) {
+		free(dirents);
 		return -1;
+	}
 	// printf("firstpart: '%s'\n", firstpart);
 	// printf("remaining: '%s'\n", remaining);
 
 	struct efs_dirent *de;
-	for (de = dirents; de->d_ino; de++) {
+	efs_ino_t myino;
+	for (de = dirents; myino = de->d_ino; de++) {
 		if (!strcmp(de->d_name, firstpart)) {
 			// printf("found it at inode %x\n", de->d_ino);
-			if (!remaining)
-				return de->d_ino;
-			else
-				return _efs_nameiat(ctx, de->d_ino, remaining);
+			if (!remaining) {
+				free(dirents);
+				return myino;
+			} else {
+				free(dirents);
+				return _efs_nameiat(ctx, myino, remaining);
+			}
 		}
 	}
 	
