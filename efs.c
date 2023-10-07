@@ -69,13 +69,6 @@ struct efs_sb efstoh(struct efs_sb efs)
 }
 
 /*
-struct efs_extent_s {
-	uint32_t ex_magic:8,
-		 ex_bn:24,
-		 ex_length:8,
-		 ex_offset:24;
-} __attribute__((packed));
-
 struct efs_edevs_s {
 	uint16_t odev;
 	uint32_t ndev;
@@ -100,36 +93,25 @@ struct efs_dinode_s {
 	} di_u;
 };
 */
-/*
-struct efs_extent_s {
-	uint32_t ex_magic:8,
-		 ex_bn:24,
-		 ex_length:8,
-		 ex_offset:24;
-} __attribute__((packed));
-*/
 
-struct efs_extent efs_extenttoh(struct efs_extent extent)
+uint32_t efs_extent_get_bn(struct efs_extent extent)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-	return extent;
-#else
-	struct efs_extent out;
-	uint8_t inbuf[8], outbuf[8];
-	memcpy(&inbuf, &extent, sizeof(inbuf));
+	uint8_t buf[8];
+	uint32_t out = 0;
 
-	outbuf[0] = inbuf[0];
-	outbuf[1] = inbuf[3];
-	outbuf[2] = inbuf[2];
-	outbuf[3] = inbuf[1];
-	outbuf[4] = inbuf[4];
-	outbuf[5] = inbuf[7];
-	outbuf[6] = inbuf[6];
-	outbuf[7] = inbuf[5];
-
-	memcpy(&out, outbuf, sizeof(outbuf));
+	memcpy(buf, &extent, sizeof(buf));
+	out = 256*256*buf[1] + 256*buf[2] + buf[3];
 	return out;
-#endif
+}
+
+uint32_t efs_extent_get_offset(struct efs_extent extent)
+{
+	uint8_t buf[8];
+	uint32_t out = 0;
+
+	memcpy(buf, &extent, sizeof(buf));
+	out = 256*256*buf[5] + 256*buf[6] + buf[7];
+	return out;
 }
 
 struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
@@ -160,7 +142,7 @@ struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
 		break;
 	default:
 		for (i = 0; i < EFS_DIRECTEXTENTS; i++) {
-			out.di_u.di_extents[i] = efs_extenttoh(inode.di_u.di_extents[i]);
+			out.di_u.di_extents[i] = inode.di_u.di_extents[i];
 		}
 		break;
 	}
@@ -304,7 +286,7 @@ efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 	if (!dirp) goto out_error;
 	
 	dirp->ino = efs_namei(efs, dirname);
-	printf("--ino: %u\n", dirp->ino);
+	// printf("--ino: %u\n", dirp->ino);
 	if (dirp->ino == -1) goto out_error;
 	
 	dirp->dirent = _efs_read_dirblks(efs, dirp->ino);

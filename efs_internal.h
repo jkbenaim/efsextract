@@ -74,6 +74,10 @@ struct efs_extent {
 		 ex_bn:24,
 		 ex_length:8,
 		 ex_offset:24;
+	// uint8_t ex_magic;
+	// uint8_t ex_bn[3];
+	// uint8_t ex_length;
+	// uint8_t ex_offset[3];
 } __attribute__((packed));
 
 struct efs_edevs {
@@ -194,7 +198,6 @@ struct efs_dirblk {
 
 struct efs_sb efstoh (struct efs_sb efs);
 struct efs_dinode efs_dinodetoh(struct efs_dinode inode);
-struct efs_extent efs_extenttoh(struct efs_extent extent);
 
 enum efs_fstype {
 	EFS_FSTYPE_NONE = 0,

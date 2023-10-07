@@ -75,3 +75,6 @@ extern struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino);
 extern efs_ino_t efs_namei(efs_t *ctx, const char *name);
 
 extern struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino);
+
+extern uint32_t efs_extent_get_bn(struct efs_extent extent);
+extern uint32_t efs_extent_get_offset(struct efs_extent extent);

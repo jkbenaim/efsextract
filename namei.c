@@ -40,7 +40,7 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 		void *buf = NULL;
 		unsigned numindirect;
 		unsigned nobbs;
-		numindirect = dinode->di_u.di_extents[0].ex_offset;
+		numindirect = efs_extent_get_offset(dinode->di_u.di_extents[0]);
 		
 		if (numindirect > EFS_DIRECTEXTENTS)
 			errx(1, "invalid number of indirect extents (fs corrupt)");
@@ -65,11 +65,11 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 			if (i == 0)
 				offset = 0;
 			else
-				offset = ex.ex_offset;
+				offset = efs_extent_get_offset(ex);
 			erc = efs_get_blocks(
 				ctx,
 				buf + (BLKSIZ * offset),
-				ex.ex_bn,
+				efs_extent_get_bn(ex),
 				ex.ex_length
 			);
 			if (erc != EFS_ERR_OK)
@@ -78,18 +78,18 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 		for (unsigned i = 0; i < numextents; i++) {
 			struct efs_extent *exs;
 			exs = (struct efs_extent *)buf;
-			out[i] = efs_extenttoh(exs[i]);
+			out[i] = exs[i];
 		}
 		free(buf);
 	}
 	
 	/* assert that extents are in ascending order */
-	unsigned last = out[0].ex_offset;
+	unsigned last = efs_extent_get_offset(out[0]);
 	for (size_t i = 1; i < numextents; i++) {
-		if (last >= out[i].ex_offset) {
+		if (last >= efs_extent_get_offset(out[i])) {
 			errx(1, "unsorted extents");
 		}
-		last = out[i].ex_offset;
+		last = efs_extent_get_offset(out[i]);
 	}
 	
 	goto out_ok;
@@ -108,10 +108,10 @@ struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents,
 		struct efs_extent *ex;
 		ex = &exs[i];
 		/* too low? */
-		if ((ex->ex_offset * BLKSIZ) > pos)
+		if ((efs_extent_get_offset(*ex) * BLKSIZ) > pos)
 			continue;
 		/* too high? */
-		if (((ex->ex_offset + ex->ex_length) * BLKSIZ) <= pos)
+		if (((efs_extent_get_offset(*ex) + ex->ex_length) * BLKSIZ) <= pos)
 			continue;
 		return ex;
 	}
@@ -125,8 +125,8 @@ unsigned _efs_nbytes_this_extent(
 ) {
 	__label__ out_error;
 	size_t start, end;
-	start = BLKSIZ * ex->ex_offset;
-	end = BLKSIZ * (ex->ex_offset + ex->ex_length);
+	start = BLKSIZ * efs_extent_get_offset(*ex);
+	end = BLKSIZ * (efs_extent_get_offset(*ex) + ex->ex_length);
 	
 	/* assert position is within extent */
 	if (pos < start)
@@ -153,7 +153,7 @@ unsigned _efs_nbytes_firstbn(
 	unsigned blkOff;
 	
 	typeof(pos) newpos;
-	newpos = pos - (BLKSIZ * ex->ex_offset);
+	newpos = pos - (BLKSIZ * efs_extent_get_offset(*ex));
 	blkOff = newpos / BLKSIZ;
 	return blkOff;
 }
@@ -188,10 +188,11 @@ size_t efs_fread(
 		//printf("nbytes_this_read: %u\n", nbytes_this_read);
 		//printf("nbytes_this_extent: %u\n", nbytes_this_extent);
 		unsigned firstbn = _efs_nbytes_firstbn(ex, file->pos);
+		unsigned bn = efs_extent_get_bn(*ex);
 		erc = efs_get_blocks(
 			file->ctx,
 			buf,
-			ex->ex_bn + firstbn,
+			bn + firstbn,
 			1
 		);
 		if (erc != EFS_ERR_OK)
@@ -374,7 +375,7 @@ int efs_ferror(efs_file_t *file)
 
 struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 {
-	struct efs_dirent *out = NULL;
+	struct efs_dirent *out = NULL, *old = NULL;
 	size_t out_size = 0;
 	size_t out_used = 0;
 	size_t sRc;
@@ -445,8 +446,11 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	}
 	
 	/* add one more dirent as a terminator */
+	old = out;
 	out = realloc(out, (out_used + 1) * sizeof(struct efs_dirent));
-	if (out)
+	if (!out)
+		free(old);
+	else
 		out[out_used].d_ino = 0;
 	
 	efs_fclose(file);
@@ -522,7 +526,7 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 
 	struct efs_dirent *de;
 	efs_ino_t myino;
-	for (de = dirents; myino = de->d_ino; de++) {
+	for (de = dirents; (myino = de->d_ino); de++) {
 		if (!strcmp(de->d_name, firstpart)) {
 			// printf("found it at inode %x\n", de->d_ino);
 			if (!remaining) {

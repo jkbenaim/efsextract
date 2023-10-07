@@ -416,12 +416,12 @@ int main(int argc, char *argv[])
 	queue_enqueue(strdup(""));
 
 	struct qent *q;
-	while (q = queue_dequeue()) {
+	while ((q = queue_dequeue())) {
 		efs_dir_t *dirp;
 		dirp = efs_opendir(efs, q->path);
 		if (!dirp) errx(1, "couldn't open directory: '%s'", q->path);
 		struct efs_dirent *de;
-		while (de = efs_readdir(dirp)) {
+		while ((de = efs_readdir(dirp))) {
 			struct efs_stat sb;
 			char *path;
 			rc = efs_stati(efs, de->d_ino, &sb);
@@ -435,7 +435,9 @@ int main(int argc, char *argv[])
 				}
 				queue_push(strdup(path));
 			}
-			if (!lflag)
+			if (lflag)
+				printf("%s\n", path);
+			else
 				emit_file(efs, path);
 nextfile:
 			free(path);
