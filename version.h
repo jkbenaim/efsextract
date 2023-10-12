@@ -1,2 +1,2 @@
 #pragma once
-#define PROG_VERSION "efsextract_0.1"
+#define PROG_VERSION "efsextract_0.2"
