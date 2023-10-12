@@ -16,10 +16,11 @@
 #include "dvh.h"
 #include "efs.h"
 #include "efs_internal.h"
-#include "err.h"
 #include "endian.h"
+#include "err.h"
 #include "hexdump.h"
 #include "progname.h"
+#include "tar.h"
 #include "version.h"
 
 int qflag = 0;
@@ -196,7 +197,7 @@ void emit_regfile(efs_t *efs, const char *path)
 	if (rc == -1)
 		err(1, "couldn't get stat for '%s'", path);
 
-	src = efs_fopen(efs, path, "r");
+	src = efs_fopen(efs, path);
 	if (!src)
 		errx(1, "couldn't open efs file '%s'", path);
 
@@ -270,15 +271,45 @@ void emit_file(efs_t *efs, const char *path)
 	}
 }
 
+void emit_file_tar(efs_t *efs, const char *path)
+{
+	struct efs_stat sb;
+	int rc;
+
+	rc = efs_stat(efs, path, &sb);
+	if (rc == -1)
+		err(1, "couldn't get stat for '%s'", path);
+
+	switch (sb.st_mode & IFMT) {
+	case IFDIR:
+		break;
+	case IFREG:
+		break;
+	case IFIFO:
+		break;
+	case IFCHR:
+		break;
+	case IFBLK:
+		break;
+	case IFLNK:
+		break;
+	case IFSOCK:
+		break;
+	default:
+		break;
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	char *filename = NULL;
+	char *outfile = NULL;
 	int rc;
 	int parnum = -1;
 
 	progname_init(argc, argv);
 	
-	while ((rc = getopt(argc, argv, "hLlp:PqV")) != -1)
+	while ((rc = getopt(argc, argv, "hLlo:p:PqV")) != -1)
 		switch (rc) {
 		case 'h':
 			usage();
@@ -296,6 +327,13 @@ int main(int argc, char *argv[])
 				tryhelp();
 			}
 			lflag = 1;
+			break;
+		case 'o':
+			if (outfile) {
+				warnx("multiple use of `-o'");
+				tryhelp();
+			}
+			outfile = optarg;
 			break;
 		case 'p':
 			if (parnum != -1) {
@@ -349,7 +387,6 @@ int main(int argc, char *argv[])
 		errx(1, "cannot combine L flag with other flags");
 		
 	if (Lflag) {
-		printf("a\n");
 		efs_err_t erc;
 		dvh_t *ctx = NULL;
 		erc = dvh_open(&ctx, filename);
@@ -415,6 +452,11 @@ int main(int argc, char *argv[])
 
 	queue_enqueue(strdup(""));
 
+	if (outfile) {
+		rc = tar_create(outfile);
+		if (rc) err(1, "couldn't create archive '%s'", outfile);
+	}
+
 	struct qent *q;
 	while ((q = queue_dequeue())) {
 		efs_dir_t *dirp;
@@ -435,16 +477,26 @@ int main(int argc, char *argv[])
 				}
 				queue_push(strdup(path));
 			}
-			if (lflag)
+			if (!qflag)
 				printf("%s\n", path);
-			else
-				emit_file(efs, path);
+			if (!lflag) {
+				if (outfile) {
+					tar_emit(efs, path);
+				} else {
+					emit_file(efs, path);
+				}
+			}
 nextfile:
 			free(path);
 		}
 		efs_closedir(dirp);
 		free(q->path);
 		free(q);
+	}
+
+	if (outfile) {
+		rc = tar_close();
+		if (rc) err(1, "couldn't close archive '%s'", outfile);
 	}
 	
 	efs_close(efs);

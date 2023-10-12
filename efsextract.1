@@ -30,8 +30,12 @@ List files without extracting.
 .B \-L
 List partitions and bootfiles.
 .TP
-.B \-p NUM
-Use partition number \fBNUM\fR (default: 7).
+.B \-o \fIARCHIVE\fR
+Instead of extracting, create a tar archive \fIARCHIVE\fR containing
+all files from the image.
+.TP
+.B \-p \fINUM\fR
+Use partition number \fINUM\fR (default: 7).
 .TP
 .B \-P
 Also extract file permissions.

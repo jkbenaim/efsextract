@@ -177,7 +177,7 @@ size_t efs_fread(
 	nbytes_this_extent = _efs_nbytes_this_extent(ex, file->pos, nbytes);
 	
 	//printf("file->pos: %u\n", file->pos);
-	memset(ptr, 0xab, nbytes);
+	memset(ptr, 0, nbytes);
 	//printf("nbytes_this_extent: %u\n", nbytes_this_extent);
 	
 	while (nbytes_this_extent > 0) {
@@ -213,8 +213,7 @@ size_t efs_fread(
 efs_file_t *efs_fopenat(
 	efs_t *ctx,
 	efs_dir_t *dirp,
-	const char *path,
-	const char *mode
+	const char *path
 ) {
 	__label__ out_ok, out_error;
 	
@@ -242,12 +241,11 @@ out_error:
 
 efs_file_t *efs_fopen(
 		      efs_t *ctx,
-		      const char *path,
-		      const char *mode
+		      const char *path
 ) {
 	efs_dir_t dir;
 	dir.ino = EFS_BLK_ROOTINO;
-	return efs_fopenat(ctx, &dir, path, mode);
+	return efs_fopenat(ctx, &dir, path);
 }
 
 efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino)
@@ -276,6 +274,7 @@ efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino)
 	switch (out->dinode.di_mode & IFMT) {
 	case IFREG:
 	case IFDIR:
+	case IFLNK:
 		break;
 	default:
 		goto out_error;

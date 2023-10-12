@@ -341,6 +341,14 @@ int efs_stati(efs_t *ctx, efs_ino_t ino, struct efs_stat *statbuf)
 	statbuf->st_uid = dinode.di_uid;
 	statbuf->st_gid = dinode.di_gid;
 	statbuf->st_size = dinode.di_size;
+
+	switch (statbuf->st_mode & IFMT) {
+	case IFCHR:
+	case IFBLK:
+		statbuf->st_major = (dinode.di_u.di_dev.odev & 0xff00) >> 8;
+		statbuf->st_minor = (dinode.di_u.di_dev.odev & 0x00ff);
+		break;
+	}
 	
 	statbuf->st_atimespec.tv_sec = dinode.di_atime;
 	statbuf->st_atimespec.tv_nsec = 0;
@@ -365,3 +373,5 @@ int efs_fstat(efs_file_t *file, struct efs_stat *statbuf)
 {
 	return efs_stati(file->ctx, file->ino, statbuf);
 }
+
+

@@ -42,12 +42,14 @@ struct efs_stat {
 	uint16_t st_uid;
 	uint16_t st_gid;
 	int32_t st_size;
+	uint16_t st_major;
+	uint16_t st_minor;
 	struct timespec st_atimespec;
 	struct timespec st_mtimespec;
 	struct timespec st_ctimespec;
 };
 
-extern efs_file_t *efs_fopen(efs_t *ctx, const char *path, const char *mode);
+extern efs_file_t *efs_fopen(efs_t *ctx, const char *path);
 extern int efs_fclose(efs_file_t *file);
 extern size_t efs_fread(void *ptr, size_t size, size_t nmemb, efs_file_t *file);
 extern int efs_fseek(efs_file_t *file, long offset, int whence);
@@ -78,3 +80,4 @@ extern struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino);
 
 extern uint32_t efs_extent_get_bn(struct efs_extent extent);
 extern uint32_t efs_extent_get_offset(struct efs_extent extent);
+
