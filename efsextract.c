@@ -249,7 +249,11 @@ void emit_file(efs_t *efs, const char *path)
 
 	switch (sb.st_mode & IFMT) {
 	case IFDIR:
+#ifdef __MINGW32__
+		rc = mkdir(path);
+#else
 		rc = mkdir(path, sb.st_mode & 0777);
+#endif
 		if (rc == -1)
 			err(1, "couldn't make directory '%s'", path);
 		break;
@@ -521,6 +525,8 @@ static void usage(void)
 "  -h       print this help text\n"
 "  -l       list files without extracting\n"
 "  -L       list partitions and bootfiles\n"
+"  -o ARCHIVE\n"
+"           create a tar archive instead of extracting\n"
 "  -p NUM   use partition number (default: 7)\n"
 "  -P       also extract with file permissions\n"
 "  -q       do not show file listing while extracting\n"
