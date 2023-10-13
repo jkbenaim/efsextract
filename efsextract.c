@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #if defined(__linux)
 #include <sys/sysmacros.h>
@@ -261,43 +262,68 @@ void emit_file(efs_t *efs, const char *path)
 		emit_regfile(efs, path);
 		break;
 	case IFIFO:
+#ifndef __MINGW32__
+		rc = mkfifo(path, sb.st_mode & 0777);
+		if (rc == -1)
+			warn("couldn't create fifo '%s'", path);
+#else
+		warnx("extracting fifos not supported");
+#endif
 		break;
 	case IFCHR:
+#ifndef __MINGW32__
+		rc = mknod(path, S_IFCHR | (sb.st_mode & 0777), makedev(sb.st_major, sb.st_minor));
+		if (rc == -1)
+			warn("couldn't create character special '%s'", path);
+#else
+		warnx("extracting character specials not supported");
+#endif
 		break;
 	case IFBLK:
+#ifndef __MINGW32__
+		rc = mknod(path, S_IFBLK | (sb.st_mode & 0777), makedev(sb.st_major, sb.st_minor));
+		if (rc == -1)
+			warn("couldn't create block special '%s'", path);
+#else
+		warnx("extracting block specials not supported");
+#endif
 		break;
 	case IFLNK:
-		break;
-	case IFSOCK:
-		break;
-	default:
-		break;
+#ifndef __MINGW32__
+	{
+		__label__ done;
+		char *buf = NULL;
+		efs_file_t *f = NULL;
+		size_t sz;
+
+		buf = malloc(sb.st_size + 1);
+		if (!buf)
+			err(1, "in malloc");
+		f = efs_fopen(efs, path);
+		if (!f) {
+			warnx("couldn't open efs symlink '%s'", path);
+			goto done;
+		}
+		sz = efs_fread(buf, sb.st_size, 1, f);
+		if (sz != 1) {
+			warnx("couldn't read efs symlink '%s'", path);
+			goto done;
+		}
+		buf[sb.st_size] = '\0';
+		rc = symlink(buf, path);
+		if (rc == -1)
+			warn("couldn't create symlink '%s'", path);
+done:
+		if (f)
+			efs_fclose(f);
+		free(buf);
 	}
-}
-
-void emit_file_tar(efs_t *efs, const char *path)
-{
-	struct efs_stat sb;
-	int rc;
-
-	rc = efs_stat(efs, path, &sb);
-	if (rc == -1)
-		err(1, "couldn't get stat for '%s'", path);
-
-	switch (sb.st_mode & IFMT) {
-	case IFDIR:
-		break;
-	case IFREG:
-		break;
-	case IFIFO:
-		break;
-	case IFCHR:
-		break;
-	case IFBLK:
-		break;
-	case IFLNK:
+#else
+		warnx("extracting symlinks not supported");
+#endif
 		break;
 	case IFSOCK:
+		warnx("extracting sockets not supported");
 		break;
 	default:
 		break;
