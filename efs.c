@@ -155,6 +155,7 @@ efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 	__label__ out_error, out_ok;
 	int rc;
 	efs_err_t erc;
+	//printf("efs_get_blocks(%p, %p, %zu, %zu);\n", ctx, buf, firstlbn, nblks);
 
 	rc = fsseek(ctx->fs, BLKSIZ * firstlbn, SEEK_SET);
 	if (rc == -1) {
@@ -162,8 +163,14 @@ efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 		goto out_error;
 	}
 
-	//printf("fsread(%p, %u, %lu, %p);\n", buf, BLKSIZ, nblks, ctx->fs);
+#if 0
+	printf("fsread(%p, %u, %lu, %p);\n", buf, BLKSIZ, nblks, ctx->fs);
+#endif
 	rc = fsread(buf, BLKSIZ, nblks, ctx->fs);
+#if 0
+	printf("fsread: returning %d\n", rc);
+	//hexdump(buf, BLKSIZ * nblks);
+#endif
 	if (rc != nblks) {
 		erc = EFS_ERR_READFAIL;
 		goto out_error;
@@ -246,9 +253,6 @@ struct efs_ino_inf_s efs_get_inode_info(efs_t *ctx, efs_ino_t ino)
 struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino)
 {
 	struct efs_dinode inodes[4];
-
-	//printf("--> read inode %u\n", ino);
-
 
 	struct efs_ino_inf_s info;
 	info = efs_get_inode_info(ctx, ino);

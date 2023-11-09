@@ -20,6 +20,7 @@
 #include "endian.h"
 #include "err.h"
 #include "hexdump.h"
+#include "pdscan.h"
 #include "progname.h"
 #include "tar.h"
 #include "version.h"
@@ -28,6 +29,7 @@ int qflag = 0;
 int lflag = 0;
 int Pflag = 0;
 int Lflag = 0;
+int Wflag = 0;
 
 static void tryhelp(void);
 static void usage(void);
@@ -330,6 +332,32 @@ done:
 	}
 }
 
+void pdprint(efs_t *efs, const char *path)
+{
+	struct efs_stat sb;
+	efs_file_t *f;
+	int rc;
+
+	rc = efs_stat(efs, path, &sb);
+	if (rc == -1)
+		err(1, "couldn't get stat for '%s'", path);
+
+	if (IFREG != (sb.st_mode & IFMT)) {
+		return;
+	}
+	if (sb.st_size < 16) {
+		return;
+	}
+	f = efs_fopen(efs, path);
+	if (f) {
+		pdscan(f);
+		efs_fclose(f);
+		f = NULL;
+	} else {
+		//warnx("couldn't open efs file '%s'\n", path);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	char *filename = NULL;
@@ -339,7 +367,7 @@ int main(int argc, char *argv[])
 
 	progname_init(argc, argv);
 	
-	while ((rc = getopt(argc, argv, "hLlo:p:PqV")) != -1)
+	while ((rc = getopt(argc, argv, "hLlo:p:PqVW")) != -1)
 		switch (rc) {
 		case 'h':
 			usage();
@@ -394,6 +422,13 @@ int main(int argc, char *argv[])
 		case 'V':
 			fprintf(stderr, "%s\n", PROG_VERSION);
 			exit(EXIT_SUCCESS);
+			break;
+		case 'W':
+			if (Wflag != 0) {
+				warnx("multiple use of `-W'");
+				tryhelp();
+			}
+			Wflag = 1;
 			break;
 		default:
 			tryhelp();
@@ -479,6 +514,7 @@ int main(int argc, char *argv[])
 	erc = efs_open(&efs, par);
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open efs in '%s'", filename);
+	
 
 	queue_enqueue(strdup(""));
 
@@ -486,6 +522,10 @@ int main(int argc, char *argv[])
 		rc = tar_create(outfile);
 		if (rc) err(1, "couldn't create archive '%s'", outfile);
 	}
+
+        if (Wflag) {
+                printf("   %-30s  %s\n\n", "Name", "Description");
+        }
 
 	struct qent *q;
 	while ((q = queue_dequeue())) {
@@ -507,15 +547,18 @@ int main(int argc, char *argv[])
 				}
 				queue_push(strdup(path));
 			}
-			if (!qflag)
+			if (!qflag && !Wflag)
 				printf("%s\n", path);
-			if (!lflag) {
+			if (!lflag && !Wflag) {
 				if (outfile) {
 					tar_emit(efs, path);
 				} else {
 					emit_file(efs, path);
 				}
 			}
+                        if (Wflag) {
+			        pdprint(efs, path);
+                        }
 nextfile:
 			free(path);
 		}
@@ -556,6 +599,7 @@ static void usage(void)
 "  -p NUM   use partition number (default: 7)\n"
 "  -P       also extract with file permissions\n"
 "  -q       do not show file listing while extracting\n"
+"  -W       scan image for packages and list them\n"
 "  -V       print program version\n"
 "\n"
 "Please report any bugs to <jkbenaim@gmail.com>.\n"

@@ -81,6 +81,10 @@ int fsseek(fileslice_t *fs, long offset, int whence)
 	__label__ out_error;
 	int rc;
 	fpos_t old_pos;
+	
+#if 0
+	printf("fseek(%p, %lu, %d\n", fs, offset, whence);
+#endif
 
 	if ((whence != SEEK_SET) && (whence != SEEK_CUR)) {
 		/* SEEK_END is not supported */
@@ -90,6 +94,10 @@ int fsseek(fileslice_t *fs, long offset, int whence)
 	/* Save old position */
 	rc = fgetpos(fs->f, &old_pos);
 	if (rc == -1) goto out_error;
+
+#if 0
+	printf("fsread: pos before %lu\n", ftell(fs->f));
+#endif
 
 	/* Handle whence */
 	if (whence == SEEK_SET) {

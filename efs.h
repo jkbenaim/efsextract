@@ -33,6 +33,8 @@ typedef struct efs_file {
 	unsigned nbytes;
 	bool eof;
 	bool error;
+	uint8_t blockbuf[BLKSIZ];
+	int blocknum;	// set to -1 if blockbuf is not filled
 } efs_file_t;
 
 struct efs_stat {

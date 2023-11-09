@@ -1,6 +1,8 @@
 target  ?= efsextract
-objects := dvh.o efsextract.o efs.o efs_err.o fileslice.o hexdump.o namei.o progname.o tar.o
-CFLAGS  += -std=gnu99 -Wall -ggdb
+objects := dvh.o efsextract.o efs.o efs_err.o fileslice.o hexdump.o namei.o pdscan.o progname.o tar.o
+#EXTRAS = -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -Wall -fanalyzer
+CFLAGS  = -std=gnu99 -Wall -ggdb -Wno-unused-variable ${EXTRAS}
+LDFLAGS += ${EXTRAS}
 
 .PHONY: all
 all:	$(target) README
@@ -23,4 +25,3 @@ README: ${target}.1
 	MANWIDTH=77 man --nh --nj ./${target}.1 | col -b > $@
 
 $(target): $(objects)
-	$(CC) ${objects} ${LDLIBS} -o $@

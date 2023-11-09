@@ -1,5 +1,8 @@
 #pragma once
 
+#include <errno.h>
+#include <string.h>
+
 #if defined(__MINGW32__) || defined(__sgi)
 #include <stdio.h>
 #define warn(...) do {fprintf(stderr, __VA_ARGS__); fprintf(stderr, ": %s\n", strerror(errno));} while (0);

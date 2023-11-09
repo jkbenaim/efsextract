@@ -10,6 +10,9 @@
 #include "err.h"
 #include "hexdump.h"
 
+#define MAX(a,b) (a>b?a:b)
+#define MIN(a,b) (a>b?b:a)
+
 const char *_getfirstpathpart(const char *name);
 struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode);
 struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos);
@@ -138,9 +141,7 @@ unsigned _efs_nbytes_this_extent(
 	pos -= start;
 	unsigned bytes_left_in_extent;
 	bytes_left_in_extent = end - start - pos;
-#define MIN(a, b) (a>b?b:a)
 	return MIN(bytes_left_in_extent, nbytes);
-#undef MIN
 out_error:
 	return 0;
 }
@@ -149,13 +150,131 @@ unsigned _efs_nbytes_firstbn(
 	struct efs_extent *ex,
 	unsigned pos
 ) {
-	
-	unsigned blkOff;
-	
-	typeof(pos) newpos;
+	typeof(pos) blkOff, newpos;
+
 	newpos = pos - (BLKSIZ * efs_extent_get_offset(*ex));
 	blkOff = newpos / BLKSIZ;
 	return blkOff;
+}
+
+size_t efs_fread_blocks(
+	void *ptr,
+	size_t lbn,
+	size_t numblocks,
+	efs_file_t *file
+) {
+	efs_err_t erc;
+	struct efs_extent *ex;
+
+#if 0
+	printf("efs_fread_blocks: ptr: %p, lbn: %zu, numblocks: %zu\n",
+		ptr,
+		lbn,
+		numblocks
+	);
+#endif
+	if ((numblocks==1) && (file->blocknum == lbn)) {
+		memcpy(ptr, file->blockbuf, BLKSIZ);
+		return 1;
+	}
+	unsigned done = 0;
+	while (done < numblocks) {
+		unsigned offset_in_extent;
+		unsigned blocks_this_extent;
+
+		ex = _efs_find_extent(file->exs, file->numextents, lbn * BLKSIZ);
+		if (!ex) errx(1, "in efs_fread_blocks");
+		offset_in_extent = lbn - efs_extent_get_offset(*ex);
+		blocks_this_extent = MIN(numblocks, ex->ex_length - offset_in_extent);
+
+#if 0
+		printf("before: %u\n", blocks_this_extent);
+		//hexdump(ptr, blocks_this_extent * BLKSIZ);
+#endif
+
+		erc = efs_get_blocks(file->ctx, ptr, efs_extent_get_bn(*ex) + offset_in_extent, blocks_this_extent);
+		if (erc) errefs(1, erc, "in efs_fread_blocks");
+#if 0
+		printf("after:\n");
+		hexdump(ptr, blocks_this_extent * BLKSIZ);
+#endif
+		ptr += blocks_this_extent * BLKSIZ;
+		done += blocks_this_extent;
+	}
+	if (numblocks == 1) {
+		file->blocknum = lbn;
+		memcpy(file->blockbuf, ptr - BLKSIZ, BLKSIZ);
+	}
+
+#if 0
+	printf("efs_fread_blocks returning: %zu\n", numblocks);
+#endif
+	return numblocks;
+}
+
+size_t _efs_fread_aux(
+	void *ptr,
+	size_t size,
+	efs_file_t *file
+) {
+	if (!size) return 0;
+
+	/* start with a partial block? */
+	if (file->pos % BLKSIZ) {
+		// TODO
+		unsigned start, len, blknum;
+		size_t rc;
+		uint8_t buf[BLKSIZ];
+
+		start = file->pos % BLKSIZ;
+		len = MIN(size, (BLKSIZ - start));
+		blknum = file->pos / BLKSIZ;
+
+		rc = efs_fread_blocks(buf, blknum, 1, file);
+		if (rc != 1) return 0;
+
+		memcpy(ptr, &buf[start], len);
+		file->pos += len;
+		ptr += len;
+		size -= len;
+	}
+
+	/* whole blocks? */
+	if (!(file->pos % BLKSIZ) && (size >= BLKSIZ)) {
+		unsigned startblk, nblks;
+		size_t rc;
+
+		startblk = file->pos / BLKSIZ;
+		nblks = size / BLKSIZ;
+#if 0
+		printf("file->pos: %lu, size: %lu\n", file->pos, size);
+		printf("nblks: %lu, startblk: %lu\n", nblks, startblk);
+#endif 
+		rc = efs_fread_blocks(ptr, startblk, nblks, file);
+		if (rc != nblks) return 0;
+
+		file->pos += nblks * BLKSIZ;
+		ptr += nblks * BLKSIZ;
+		size -= nblks * BLKSIZ;
+	}
+
+	/* end with a partial block? */
+	if (!(file->pos % BLKSIZ) && size > 0 && size < BLKSIZ) {
+		size_t rc;
+		uint8_t buf[BLKSIZ];
+		unsigned blknum;
+
+		blknum = file->pos / BLKSIZ;
+
+		rc = efs_fread_blocks(buf, blknum, 1, file);
+		if (rc != 1) return 0;
+
+		memcpy(ptr, buf, size);
+		file->pos += size;
+		ptr += size;
+	}
+
+	return 1;
 }
 
 size_t efs_fread(
@@ -164,49 +283,28 @@ size_t efs_fread(
 	size_t nmemb,
 	efs_file_t *file
 ) {
-	efs_err_t erc;
-	size_t out;
-	struct efs_extent *ex;
-	size_t nbytes;
-	uint8_t buf[BLKSIZ];
-	
-	nbytes = size * nmemb;
-	ex = _efs_find_extent(file->exs, file->numextents, file->pos);
-	if (!ex) return 0;
-	unsigned nbytes_this_extent;
-	nbytes_this_extent = _efs_nbytes_this_extent(ex, file->pos, nbytes);
-	
-	//printf("file->pos: %u\n", file->pos);
-	memset(ptr, 0, nbytes);
-	//printf("nbytes_this_extent: %u\n", nbytes_this_extent);
-	
-	while (nbytes_this_extent > 0) {
-		unsigned nbytes_this_read;
-#define MIN(a,b) (a>b?b:a)
-		nbytes_this_read = MIN(BLKSIZ, nbytes_this_extent);
-#undef MIN
-		//printf("nbytes_this_read: %u\n", nbytes_this_read);
-		//printf("nbytes_this_extent: %u\n", nbytes_this_extent);
-		unsigned firstbn = _efs_nbytes_firstbn(ex, file->pos);
-		unsigned bn = efs_extent_get_bn(*ex);
-		erc = efs_get_blocks(
-			file->ctx,
-			buf,
-			bn + firstbn,
-			1
-		);
-		if (erc != EFS_ERR_OK)
-			errefs(1, erc, "in _efs_file_fread");
-		memcpy(ptr, buf, nbytes_this_read);
-		//printf("ok\n");
-		ptr += nbytes_this_read;
-		nbytes_this_extent -= nbytes_this_read;
+	size_t out = 0;
+
+#if 0
+	printf("efs_fread: size: %8zx, nmemb: %8zx, pos: %8x\n",
+		size,
+		nmemb,
+		file->pos
+	);
+#endif
+
+	for (int i = 0; i < nmemb; i++) {
+		size_t rc;
+		rc = _efs_fread_aux(ptr, size, file);
+		//ptr += size;
+		if (rc == 1) out++;
+		else break;
 	}
-	
-	file->pos += nbytes;
-	
-	/* this return value is truly wrong */
-	out = 1;
+
+#if 0
+	printf("efs_fread: returning %zu\n", out);
+#endif
+
 	return out;
 }
 
@@ -240,8 +338,8 @@ out_error:
 }
 
 efs_file_t *efs_fopen(
-		      efs_t *ctx,
-		      const char *path
+	efs_t *ctx,
+	const char *path
 ) {
 	efs_dir_t dir;
 	dir.ino = EFS_BLK_ROOTINO;
@@ -264,6 +362,7 @@ efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino)
 	out->error = false;
 	out->dinode = efs_get_inode(ctx, ino);
 	out->nbytes = out->dinode.di_size;
+	out->blocknum = -1;
 	
 	/* validate inode */
 	if (out->dinode.di_version != 0)
@@ -411,7 +510,7 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	if (!file)
 		errx(1, "in _efs_read_dirblks while opening directory");
 	for (unsigned blk = 0; blk < (file->nbytes / BLKSIZ); blk++) {
-		memset(&dirblk, 0xab, sizeof(dirblk));
+		memset(&dirblk, 0xba, sizeof(dirblk));
 		sRc = efs_fread(&dirblk, sizeof(dirblk), 1, file);
 		if (sRc != 1) errx(1, "while reading dirblk blk");
 		if (dirblk.magic != htobe16(EFS_DIRBLK_MAGIC)) {
