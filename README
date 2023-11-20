@@ -5,7 +5,7 @@ NAME
 
 SYNOPSIS
        efsextract [OPTION] [FILE]
-       efsextract [‐h|‐V]
+       efsextract [-h|-V]
 
 DESCRIPTION
        efsextract extracts files from an SGI CD image, or an EFS file
@@ -19,7 +19,7 @@ DESCRIPTION
        partition.
 
        Most systems cannot understand this sort of disc format. This tool
-       was developed to allow non‐SGI systems to at least be able to
+       was developed to allow non-SGI systems to at least be able to
        extract files from such discs.
 
 OPTIONS
@@ -36,11 +36,9 @@ OPTIONS
 
        -p NUM Use partition number NUM (default: 7).
 
-       -P     Also extract file permissions.
-
        -q     Do not show file listing while extracting.
 
-       -W     Instead of extracting, scan the image for ‘inst’ packages and
+       -W     Instead of extracting, scan the image for `inst' packages and
 	      list them.
 
        -V     Print version information on standard output and exit
@@ -56,6 +54,6 @@ COPYRIGHT
        There is NO WARRANTY, to the extent permitted by law.
 
 SEE ALSO
-       iso‐read(1), isoinfo(1)
+       iso-read(1), isoinfo(1)
 
 							      efsextract(1)

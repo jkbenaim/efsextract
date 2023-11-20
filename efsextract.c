@@ -28,7 +28,6 @@
 
 int qflag = 0;
 int lflag = 0;
-int Pflag = 0;
 int Lflag = 0;
 int Wflag = 0;
 
@@ -166,14 +165,7 @@ void emit_regfile(efs_t *efs, const char *path)
 	efs_fclose(src);
 	fclose(dst);
 
-	unsigned mask;
-	if (Pflag) {
-		mask = 07777;
-	} else {
-		mask = 0777;
-	}
-
-	rc = chmod(path, sb.st_mode & mask);
+	rc = chmod(path, sb.st_mode & 0777);
 	if (rc == -1)
 		err(1, "couldn't set permissions on '%s'", path);
 }
@@ -304,7 +296,7 @@ int main(int argc, char *argv[])
 
 	progname_init(argc, argv);
 	
-	while ((rc = getopt(argc, argv, "hLlo:p:PqVW")) != -1)
+	while ((rc = getopt(argc, argv, "hLlo:p:qVW")) != -1)
 		switch (rc) {
 		case 'h':
 			usage();
@@ -342,13 +334,6 @@ int main(int argc, char *argv[])
 					errx(1, "bad partition number `%s'", optarg);
 			}
 			break;
-		case 'P':
-			if (Pflag != 0) {
-				warnx("multiple use of `-P'");
-				tryhelp();
-			}
-			Pflag = 1;
-			break;
 		case 'q':
 			if (qflag != 0) {
 				warnx("multiple use of `-q'");
@@ -382,10 +367,7 @@ int main(int argc, char *argv[])
 	if (parnum == -1)
 		parnum = 7;
 
-	if (Pflag && lflag)
-		errx(1, "cannot combine P and l flags");
-	
-	if (Lflag && (Pflag || lflag || qflag))
+	if (Lflag && (lflag || qflag))
 		errx(1, "cannot combine L flag with other flags");
 		
 	if (Lflag) {
@@ -534,11 +516,10 @@ static void usage(void)
 "\n"
 "  -h       print this help text\n"
 "  -l       list files without extracting\n"
-"  -L       list partitions and bootfiles\n"
+"  -L       list partitions and bootfiles from the volume header\n"
 "  -o ARCHIVE\n"
 "           create a tar archive instead of extracting\n"
 "  -p NUM   use partition number (default: 7)\n"
-"  -P       also extract with file permissions\n"
 "  -q       do not show file listing while extracting\n"
 "  -W       scan image for packages and list them\n"
 "  -V       print program version\n"
