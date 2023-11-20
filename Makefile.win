@@ -1,5 +1,5 @@
 target  ?= efsextract
-objects := dvh.o efsextract.o efs.o efs_err.o fileslice.o hexdump.o namei.o pdscan.o progname.o tar.o
+objects := dvh.o efsextract.o efs.o efs_err.o fileslice.o hexdump.o namei.o pdscan.o progname.o queue.o tar.o
 #EXTRAS = -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -Wall -fanalyzer
 CFLAGS  += -std=gnu99 -Wall -ggdb -Wno-unused-variable ${EXTRAS}
 LDFLAGS += ${EXTRAS}

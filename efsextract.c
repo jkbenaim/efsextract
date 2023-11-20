@@ -23,6 +23,7 @@
 #include "pdscan.h"
 #include "progname.h"
 #include "tar.h"
+#include "queue.h"
 #include "version.h"
 
 int qflag = 0;
@@ -33,14 +34,6 @@ int Wflag = 0;
 
 static void tryhelp(void);
 static void usage(void);
-
-struct qent {
-	struct qent *next;
-	struct qent *prev;
-	char *path;
-};
-struct qent *head = NULL;
-struct qent *tail = NULL;
 
 char *mkpath(char *path, char *name)
 {
@@ -59,62 +52,6 @@ char *mkpath(char *path, char *name)
 			errx(1, "in snprintf");
 		out[stringsize - 1] = '\0';
 	}
-	return out;
-}
-
-/* add to tail of queue */
-int queue_enqueue(char *path)
-{
-	struct qent *q;
-
-	q = calloc(1, sizeof(*q));
-	if (!q) err(1, "in malloc");
-
-	q->path = path;
-
-	if (tail)
-		tail->next = q;
-	q->prev = tail;
-	tail = q;
-	if (!head)
-		head = q;
-
-	return 0;
-}
-
-/* add to head of queue */
-int queue_push(char *path)
-{
-	struct qent *q;
-
-	q = calloc(1, sizeof(*q));
-	if (!q) err(1, "in malloc");
-
-	q->path = path;
-
-	if (head)
-		head->prev = q;
-	q->next = head;
-	head = q;
-	if (!tail)
-		tail = q;
-
-	return 0;
-}
-
-struct qent *queue_dequeue(void)
-{
-	struct qent *out;
-	out = head;
-
-	if (head) {
-		head = head->next;
-		if (head)
-			head->prev = NULL;
-	}
-	if (!head)
-		tail = NULL;
-	
 	return out;
 }
 
@@ -516,7 +453,8 @@ int main(int argc, char *argv[])
 		errefs(1, erc, "couldn't open efs in '%s'", filename);
 	
 
-	queue_enqueue(strdup(""));
+	queue_t q = queue_init();
+	queue_add_head(q, strdup(""));
 
 	if (outfile) {
 		rc = tar_create(outfile);
@@ -527,11 +465,12 @@ int main(int argc, char *argv[])
                 printf("   %-30s  %s\n\n", "Name", "Description");
         }
 
-	struct qent *q;
-	while ((q = queue_dequeue())) {
+	struct qent_s *qe;
+	while ((qe = queue_dequeue(q))) {
 		efs_dir_t *dirp;
-		dirp = efs_opendir(efs, q->path);
-		if (!dirp) errx(1, "couldn't open directory: '%s'", q->path);
+		dirp = efs_opendir(efs, qe->path);
+		if (!dirp) errx(1, "couldn't open directory: '%s'", qe->path);
+		queue_t dirq = queue_init();
 		struct efs_dirent *de;
 		while ((de = efs_readdir(dirp))) {
 			struct efs_stat sb;
@@ -539,13 +478,13 @@ int main(int argc, char *argv[])
 			rc = efs_stati(efs, de->d_ino, &sb);
 			if (rc == -1)
 				err(1, "couldn't get stat for '%s'", de->d_name);
-			path = mkpath(q->path, de->d_name);
+			path = mkpath(qe->path, de->d_name);
 			if (!path) goto nextfile;
 			if ((sb.st_mode & IFMT) == IFDIR) {
 				if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) {
 					goto nextfile;
 				}
-				queue_push(strdup(path));
+				queue_add_head(dirq, strdup(path));
 			}
 			if (!qflag && !Wflag)
 				printf("%s\n", path);
@@ -563,9 +502,11 @@ nextfile:
 			free(path);
 		}
 		efs_closedir(dirp);
-		free(q->path);
-		free(q);
+		free(qe->path);
+		free(qe);
+		queue_add_queue_head(q, dirq);
 	}
+	queue_free(q);
 
 	if (outfile) {
 		rc = tar_close();
