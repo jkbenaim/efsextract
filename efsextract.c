@@ -11,6 +11,7 @@
 #include <sys/types.h>
 
 #include <cdio/iso9660.h>
+#include <cdio/logging.h>
 
 #if defined(__linux)
 #include <sys/sysmacros.h>
@@ -429,18 +430,17 @@ int main(int argc, char *argv[])
 	if ((erc != EFS_ERR_OK) && !outfile) {
 		errx(1, "couldn't find volume header in '%s'", filename);
 	} else if (erc != EFS_ERR_OK) {
-		if (!outfile) {
-			errx(1, "no out tar specified");
-		}
+		/* is it iso9660? */
 		iso9660_t *ctx;
 		queue_t q, dirq;
 		int rc;
+
+		cdio_loglevel_default = CDIO_LOG_ERROR;
 
 		rc = tar_create(outfile);
 		if (rc) {
 			errx(1, "while creating tar");
 		}
-
 		
 		q = queue_init();
 		queue_add_head(q, strdup(""));
@@ -470,7 +470,9 @@ int main(int argc, char *argv[])
 
 					path = mkpath(qe->path, st->filename);
 					if (strcmp(st->filename, ".") && strcmp(st->filename, "..")) {
-						printf("%s\n", path);
+						if (!qflag) {
+							printf("%s\n", path);
+						}
 						switch (st->type) {
 						case _STAT_DIR:
 							queue_add_head(dirq, path);

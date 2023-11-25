@@ -25,6 +25,7 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 	efs_err_t erc;
 	struct efs_extent *out = NULL;
 	unsigned numextents = dinode->di_numextents;
+	//printf("numextents:  %4x\n", numextents);
 	
 	out = calloc(numextents, sizeof(struct efs_extent));
 	if (!out)
@@ -44,6 +45,7 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 		unsigned numindirect;
 		unsigned nobbs;
 		numindirect = efs_extent_get_offset(dinode->di_u.di_extents[0]);
+		//printf("numindirect: %4x\n", numindirect);
 		
 		if (numindirect > EFS_DIRECTEXTENTS)
 			errx(1, "invalid number of indirect extents (fs corrupt)");
@@ -60,23 +62,30 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 		}
 		buf = calloc(nobbs, BLKSIZ);
 		if (!buf) err(1, "in calloc");
+
+		unsigned bbcursor = 0;
 		
 		for (unsigned i = 0; i < numindirect; i++) {
 			struct efs_extent ex;
 			unsigned offset;
 			ex = dinode->di_u.di_extents[i];
+#if 0
 			if (i == 0)
 				offset = 0;
 			else
 				offset = efs_extent_get_offset(ex);
+#endif
+			//printf("bbcursor:    %4x (%d)\n", bbcursor, i);
 			erc = efs_get_blocks(
 				ctx,
-				buf + (BLKSIZ * offset),
+				buf + (BLKSIZ * bbcursor),
 				efs_extent_get_bn(ex),
 				ex.ex_length
 			);
 			if (erc != EFS_ERR_OK)
 				errefs(1, erc, "while fetching indir extent");
+			//hexdump(buf, BLKSIZ * nobbs);
+			bbcursor += ex.ex_length;
 		}
 		for (unsigned i = 0; i < numextents; i++) {
 			struct efs_extent *exs;
@@ -86,14 +95,50 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 		free(buf);
 	}
 	
+#if 0
+	/* sort extents */
+	int a(const struct efs_extent *a, const struct efs_extent *b) {
+		unsigned ao = efs_extent_get_offset(*a);
+		unsigned bo = efs_extent_get_offset(*b);
+		if (ao < bo)
+			return -1;
+		if (ao > bo)
+			return 1;
+		return 0;
+	}
+	qsort(out, numextents, sizeof(*out), a);
+#endif
+
+#if 0
+	/* print extent table */
+	for (size_t i = 0; i < numextents; i++) {
+		uint32_t offset, bn;
+
+		offset = efs_extent_get_offset(out[i]);
+		bn = efs_extent_get_bn(out[i]);
+
+		printf("%4zx %2x  %6x  %2x  %6x\n",
+			i,
+			out[i].ex_magic,
+			bn,
+			out[i].ex_length,
+			offset
+		);
+	}
+#endif
+#if 1
 	/* assert that extents are in ascending order */
 	unsigned last = efs_extent_get_offset(out[0]);
 	for (size_t i = 1; i < numextents; i++) {
-		if (last >= efs_extent_get_offset(out[i])) {
-			errx(1, "unsorted extents");
+		unsigned suspect;
+		suspect = efs_extent_get_offset(out[i]);
+		if (last >= suspect) {
+			errx(1, "unsorted extents (%zu: %x >= %x)", i, last, suspect);
 		}
-		last = efs_extent_get_offset(out[i]);
+		last = suspect;
 	}
+
+#endif
 	
 	goto out_ok;
 	
