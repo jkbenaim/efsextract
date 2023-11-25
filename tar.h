@@ -34,3 +34,4 @@ enum tar_type_e {
 extern int tar_create(const char *path);
 extern int tar_close(void);
 extern int tar_emit(efs_t *efs, const char *filename);
+extern int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename);

@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <cdio/iso9660.h>
+
 #if defined(__linux)
 #include <sys/sysmacros.h>
 #endif
@@ -424,8 +426,82 @@ int main(int argc, char *argv[])
 	efs_t *efs;
 	
 	erc = dvh_open(&dvh, filename);
-	if (erc != EFS_ERR_OK)
-		errefs(1, erc, "couldn't open dvh in '%s'", filename);
+	if ((erc != EFS_ERR_OK) && !outfile) {
+		errx(1, "couldn't find volume header in '%s'", filename);
+	} else if (erc != EFS_ERR_OK) {
+		if (!outfile) {
+			errx(1, "no out tar specified");
+		}
+		iso9660_t *ctx;
+		queue_t q, dirq;
+		int rc;
+
+		rc = tar_create(outfile);
+		if (rc) {
+			errx(1, "while creating tar");
+		}
+
+		
+		q = queue_init();
+		queue_add_head(q, strdup(""));
+
+		ctx = iso9660_open(filename);
+		if (!ctx)
+			errx(1, "couldn't open '%s'", filename);
+
+		CdioList_t *a;
+		CdioListNode_t *b;
+		struct qent_s *qe;
+		while ((qe = queue_dequeue(q))) {
+			a = iso9660_ifs_readdir(ctx, qe->path);
+			dirq = queue_init();
+			if (a) {
+				_CDIO_LIST_FOREACH(b, a) {
+					//char filename[4096];
+					iso9660_stat_t *st;
+					char *path;
+
+					st = (iso9660_stat_t *) _cdio_list_node_data(b);
+					//iso9660_name_translate(st->filename, filename);
+					char *type2string[] = {
+						[_STAT_FILE] = "f",
+						[_STAT_DIR]  = "d",
+					};
+
+					path = mkpath(qe->path, st->filename);
+					if (strcmp(st->filename, ".") && strcmp(st->filename, "..")) {
+						printf("%s\n", path);
+						switch (st->type) {
+						case _STAT_DIR:
+							queue_add_head(dirq, path);
+							break;
+						case _STAT_FILE:
+							tar_emit_from_iso9660(ctx, path);
+							free(path);
+							break;
+						default:
+							free(path);
+							break;
+						}
+					} else {
+						free(path);
+					}
+				}
+				iso9660_filelist_free(a);
+				a = NULL;
+			}
+			free(qe->path);
+			free(qe);
+			queue_add_queue_head(q, dirq);
+		}
+		queue_free(q);
+
+		iso9660_close(ctx);
+		tar_close();
+		ctx = NULL;
+		return 0;
+	}
+
 	
 	par = dvh_getParSlice(dvh, parnum);
 	if (!par)
@@ -472,7 +548,9 @@ int main(int argc, char *argv[])
 				printf("%s\n", path);
 			if (!lflag && !Wflag) {
 				if (outfile) {
-					tar_emit(efs, path);
+					rc = tar_emit(efs, path);
+					if (rc == -1)
+						errx(1, "while writing to tar (emit failure): %d", rc);
 				} else {
 					emit_file(efs, path);
 				}

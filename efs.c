@@ -155,7 +155,9 @@ efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 	__label__ out_error, out_ok;
 	int rc;
 	efs_err_t erc;
-	//printf("efs_get_blocks(%p, %p, %zu, %zu);\n", ctx, buf, firstlbn, nblks);
+#if 0
+	printf("efs_get_blocks(%p, %p, %zu, %zu);\n", ctx, buf, firstlbn, nblks);
+#endif
 
 	rc = fsseek(ctx->fs, BLKSIZ * firstlbn, SEEK_SET);
 	if (rc == -1) {
@@ -370,6 +372,7 @@ int efs_stat(efs_t *ctx, const char *pathname, struct efs_stat *statbuf)
 {
 	efs_ino_t ino;
 	ino = efs_namei(ctx, pathname);
+	if (ino == -1) return -1;
 	return efs_stati(ctx, ino, statbuf);
 }
 

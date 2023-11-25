@@ -28,7 +28,7 @@ OPTIONS
 
        -l     List files without extracting.
 
-       -L     List partitions and bootfiles.
+       -L     List partitions and bootfiles from the volume header.
 
        -o ARCHIVE
 	      Instead of extracting, create a tar archive ARCHIVE

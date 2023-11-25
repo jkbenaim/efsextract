@@ -167,10 +167,11 @@ size_t efs_fread_blocks(
 	struct efs_extent *ex;
 
 #if 0
-	printf("efs_fread_blocks: ptr: %p, lbn: %zu, numblocks: %zu\n",
+	printf("efs_fread_blocks: ptr: %p, lbn: %zu, numblocks: %zu, file: %p\n",
 		ptr,
 		lbn,
-		numblocks
+		numblocks,
+		file
 	);
 #endif
 	if ((numblocks==1) && (file->blocknum == lbn)) {
@@ -186,10 +187,13 @@ size_t efs_fread_blocks(
 		if (!ex) errx(1, "in efs_fread_blocks");
 		offset_in_extent = lbn - efs_extent_get_offset(*ex);
 		blocks_this_extent = MIN(numblocks, ex->ex_length - offset_in_extent);
+#if 0
+		printf("blocks_this_extent: %u\n", blocks_this_extent);
+#endif
 
 #if 0
-		printf("before: %u\n", blocks_this_extent);
-		//hexdump(ptr, blocks_this_extent * BLKSIZ);
+		printf("before: %p %u\n", ptr, blocks_this_extent);
+		hexdump(ptr, blocks_this_extent * BLKSIZ);
 #endif
 
 		erc = efs_get_blocks(file->ctx, ptr, efs_extent_get_bn(*ex) + offset_in_extent, blocks_this_extent);
@@ -217,14 +221,21 @@ size_t _efs_fread_aux(
 	size_t size,
 	efs_file_t *file
 ) {
+#if 0
+	printf("_efs_fread_aux: ptr: %16p, size: %8zx, file: %p\n",
+		ptr,
+		size,
+		file
+	);
+#endif
 	if (!size) return 0;
 
 	/* start with a partial block? */
 	if (file->pos % BLKSIZ) {
-		// TODO
 		unsigned start, len, blknum;
 		size_t rc;
-		uint8_t buf[BLKSIZ];
+		//uint8_t buf[BLKSIZ];
+		uint8_t *buf = calloc(BLKSIZ, 1);
 
 		start = file->pos % BLKSIZ;
 		len = MIN(size, (BLKSIZ - start));
@@ -247,8 +258,8 @@ size_t _efs_fread_aux(
 		startblk = file->pos / BLKSIZ;
 		nblks = size / BLKSIZ;
 #if 0
-		printf("file->pos: %lu, size: %lu\n", file->pos, size);
-		printf("nblks: %lu, startblk: %lu\n", nblks, startblk);
+		printf("file->pos: %u, size: %lu\n", file->pos, size);
+		printf("nblks: %u, startblk: %u\n", nblks, startblk);
 #endif 
 		rc = efs_fread_blocks(ptr, startblk, nblks, file);
 		if (rc != nblks) return 0;
@@ -261,7 +272,8 @@ size_t _efs_fread_aux(
 	/* end with a partial block? */
 	if (!(file->pos % BLKSIZ) && size > 0 && size < BLKSIZ) {
 		size_t rc;
-		uint8_t buf[BLKSIZ];
+		//uint8_t buf[BLKSIZ];
+		uint8_t *buf = calloc(BLKSIZ, 1);
 		unsigned blknum;
 
 		blknum = file->pos / BLKSIZ;
@@ -286,17 +298,19 @@ size_t efs_fread(
 	size_t out = 0;
 
 #if 0
-	printf("efs_fread: size: %8zx, nmemb: %8zx, pos: %8x\n",
+	if (size > 0xc080c1a2bf5e9032ULL)
+	printf("efs_fread: ptr: %16p, size: %8zx, nmemb: %8zx, file: %p\n",
+		ptr,
 		size,
 		nmemb,
-		file->pos
+		file
 	);
 #endif
 
 	for (int i = 0; i < nmemb; i++) {
 		size_t rc;
 		rc = _efs_fread_aux(ptr, size, file);
-		//ptr += size;
+		ptr += size;
 		if (rc == 1) out++;
 		else break;
 	}
@@ -492,16 +506,18 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 #if 0
 	struct efs_extent *exs;
 	exs = _efs_get_extents(ctx, &di);
-	printf("ino   ma  bn      ln  offset\n");
-	printf("----  --  ------  --  ------\n");
-	for (unsigned i = 0; i < di.di_numextents; i++) {
-		printf("%4u  %2x  %6x  %2x  %6x\n",
-			i,
-			exs[i].ex_magic,
-			exs[i].ex_bn,
-			exs[i].ex_length,
-			exs[i].ex_offset
-		);
+	if (exs) {
+		printf("ino   ma  bn      ln  offset\n");
+		printf("----  --  ------  --  ------\n");
+		for (unsigned i = 0; i < di.di_numextents; i++) {
+			printf("%4u  %2x  %6x  %2x  %6x\n",
+				i,
+				exs[i].ex_magic,
+				exs[i].ex_bn,
+				exs[i].ex_length,
+				exs[i].ex_offset
+			);
+		}
 	}
 #endif
 	

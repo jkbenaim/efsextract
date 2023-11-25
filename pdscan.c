@@ -15,7 +15,7 @@
 
 #define ARRAY_LENGTH(x) (sizeof(x)/sizeof(*x))
 
-int verbose = 0;
+const bool verbose = false;
 
 uint16_t getShort(efs_file_t *f)
 {
@@ -26,7 +26,6 @@ uint16_t getShort(efs_file_t *f)
 	if (sz != 1)
 		errx(1, "couldn't read short");
 	out = be16toh(out);
-	//printf("getShort: %4x\n", out);
 	return out;
 }
 
@@ -52,7 +51,6 @@ char *getCstring(efs_file_t *f)
 		sz = efs_fread(&a, 1, 1, f);
 		if (sz != 1) errx(1, "in getCstring 1");
 		if (a) len++;
-		//printf("pos: %6lx\t char: '%c'\n", efs_ftell(f), a);
 	} while (a);
 	efs_fseek(f, oldpos, SEEK_SET);
 	out = malloc(len + 1);
@@ -133,11 +131,13 @@ char *getMatcher(efs_file_t *f, const char *prefix)
 void getRules(efs_file_t *f)
 {
 	uint16_t rulesCount = getShort(f);
-	//printf("\t\trulesCount: %d\n", rulesCount);
+	if (verbose)
+		printf("\t\trulesCount: %d\n", rulesCount);
 	if (rulesCount > 2000) errx(1, "diagnostic abort (too many rules)");
 	for (int rule = 0; rule < rulesCount; rule++) {
 		char *matcher = getMatcher(f, "replaces ");
-		//printf("\t\t\t%s\n", matcher);
+		if (verbose)
+			printf("\t\t\t%s\n", matcher);
 		free(matcher);
 	}
 }
@@ -146,10 +146,12 @@ void getMachInfo(efs_file_t *f)
 {
 	// get machine info
 	uint32_t machCount = getInt(f);
-	//printf("machCount: %d\n", machCount);
+	if (verbose)
+		printf("machCount: %d\n", machCount);
 	for (size_t i = 0; i < machCount; i++) {
 		char *m = getString(f);
-		//printf("\tmach '%s'\n", m);
+		if (verbose)
+			printf("\tmach '%s'\n", m);
 		free(m);
 	}
 }
@@ -157,26 +159,32 @@ void getMachInfo(efs_file_t *f)
 void getPrereqs(efs_file_t *f)
 {
 	uint16_t prereqSets = getShort(f);
-	//printf("\t\tprereq sets: %d\n", prereqSets);
+	if (verbose)
+		printf("\t\tprereq sets: %d\n", prereqSets);
 	for (int set = 0; set < prereqSets; set++) {
 		uint16_t prereqsCount = getShort(f);
-		//printf("\t\tprereqs: %d (\n", prereqsCount);
+		if (verbose)
+			printf("\t\tprereqs: %d (\n", prereqsCount);
 		for (int a = 0; a < prereqsCount; a++) {
 			char *matcher = getMatcher(f, NULL);
-			//printf("\t\t\t%s\n", matcher);
+			if (verbose)
+				printf("\t\t\t%s\n", matcher);
 			free(matcher);
 		}
-		//printf("\t\t)\n");
+		if (verbose)
+			printf("\t\t)\n");
 	}
 }
 
 void getAttrs(efs_file_t *f, const char *prefix)
 {
 	uint32_t attrs = getInt(f);
-	//printf("%sattrs: %d\n", prefix, attrs);
+	if (verbose)
+		printf("%sattrs: %d\n", prefix, attrs);
 	for (size_t i = 0; i < attrs; i++) {
 		char *attr = getString(f);
-		//printf("%s\t'%s'\n", prefix, attr);
+		if (verbose)
+			printf("%s\t'%s'\n", prefix, attr);
 		free(attr);
 	}
 }
@@ -184,10 +192,12 @@ void getAttrs(efs_file_t *f, const char *prefix)
 void getUpdates(efs_file_t *f)
 {
 	uint16_t updatesCount = getShort(f);
-	//printf("\t\tupdatesCount: %d\n", updatesCount);
+	if (verbose)
+		printf("\t\tupdatesCount: %d\n", updatesCount);
 	for (int i = 0; i < updatesCount; i++) {
 		char *matcher = getMatcher(f, "updates ");
-		//printf("\t\t\t%s\n", matcher);
+		if (verbose)
+			printf("\t\t\t%s\n", matcher);
 		free(matcher);
 	}
 }
@@ -210,19 +220,23 @@ int pdscan(efs_file_t *f)
 		return 1;
 	}
 	char *prodId = getCstring(f);
-	//printf("prodId: %s\n", prodId);
 	uint16_t magic = getShort(f);
-	//printf("magic: %04x %s\n", magic, (magic==1988)?"(ok)":"(BAD)");
 	uint16_t noOfProds = getShort(f);
-	//printf("noOfProds: %04x %s\n", noOfProds, (noOfProds>=1)?"(ok)":"(BAD)");
+	if (verbose) {
+		printf("prodId: %s\n", prodId);
+		printf("magic: %04x %s\n", magic, (magic==1988)?"(ok)":"(BAD)");
+		printf("noOfProds: %04x %s\n", noOfProds, (noOfProds>=1)?"(ok)":"(BAD)");
+	}
 
 	for (unsigned prodNum = 0; prodNum < noOfProds; prodNum++) {
 
 	// root
 	uint16_t prodMagic = getShort(f);
-	//printf("prodMagic: %04x %s\n", prodMagic, (prodMagic==1987)?"(ok)":"(BAD)");
 	uint16_t prodFormat = getShort(f);
-	//printf("prodFormat: %04x\n", prodFormat);
+	if (verbose) {
+		printf("prodMagic: %04x %s\n", prodMagic, (prodMagic==1987)?"(ok)":"(BAD)");
+		printf("prodFormat: %04x\n", prodFormat);
+	}
 	switch (prodFormat) {
 	case 5 ... 9:
 		break;
@@ -232,19 +246,25 @@ int pdscan(efs_file_t *f)
 	}
 
 	char *shortName = getString(f);
-	//printf("shortName: '%s'\n", shortName);
 	char *longName = getString(f);
-	//printf("longName:  '%s'\n", longName);
 	uint16_t prodFlags = getShort(f);
-	//printf("prodFlags: %04x\n", prodFlags);
+	if (verbose) {
+		printf("shortName: '%s'\n", shortName);
+		printf("longName:  '%s'\n", longName);
+		printf("prodFlags: %04x\n", prodFlags);
+	}
 	if (prodFormat >= 5) {
 		time_t prodDateTime = getInt(f);
-		//printf("datetime: %s", ctime(&prodDateTime));
+		if (verbose) {
+			printf("datetime: %s", ctime(&prodDateTime));
+		}
 	}
 
 	if (prodFormat >= 5) {
 		char *prodIdk = getString(f);
-		//printf("prodIdk: '%s'\n", prodIdk);
+		if (verbose) {
+			printf("prodIdk: '%s'\n", prodIdk);
+		}
 		free(prodIdk);
 	}
 
@@ -265,27 +285,36 @@ int pdscan(efs_file_t *f)
 	line = NULL;
 
 	uint16_t imageCount = getShort(f);
-	//printf("imageCount: %04x\n", imageCount);
+	if (verbose) {
+		printf("imageCount: %04x\n", imageCount);
+	}
 
 	for (int image = 0; image < imageCount; image++) {
-		//printf("product #%d image #%d:\n", prodNum, image);
 		uint16_t imageFlags = getShort(f);
-		//printf("\timageFlags: %04x\n", imageFlags);
 		char *imageName = getString(f);
-		//printf("\timageName: '%s'\n", imageName);
 		char *imageId = getString(f);
-		//printf("\timageId: '%s'\n", imageId);
 		uint16_t imageFormat = getShort(f);
-		//printf("\timageFormat: %04x\n", imageFormat);
 
-		uint16_t imageOrder = 0;
-		if (prodFormat >= 5) {
-			imageOrder = getShort(f);
+		if (verbose) {
+			printf("product #%d image #%d:\n", prodNum, image);
+			printf("\timageFlags: %04x\n", imageFlags);
+			printf("\timageName: '%s'\n", imageName);
+			printf("\timageId: '%s'\n", imageId);
+			printf("\timageFormat: %04x\n", imageFormat);
 		}
-		//printf("\timageOrder: %04x (%u)\n", imageOrder, imageOrder);
+
+		if (prodFormat >= 5) {
+			uint16_t imageOrder;
+			imageOrder = getShort(f);
+			if (verbose) {
+				printf("\timageOrder: %04x (%u)\n", imageOrder, imageOrder);
+			}
+		}
 
 		uint32_t imageVersion = getInt(f);
-		//printf("\timageVersion: %u\n", imageVersion);
+		if (verbose) {
+			printf("\timageVersion: %u\n", imageVersion);
+		}
 
 		if (prodFormat == 5) {
 			uint32_t a = getInt(f);
@@ -298,8 +327,8 @@ int pdscan(efs_file_t *f)
 		}
 
 		char *derivedFrom = getString(f);
-		if (strlen(derivedFrom)) {
-			//printf("\tderivedFrom: '%s'\n", derivedFrom);
+		if (verbose && strlen(derivedFrom)) {
+			printf("\tderivedFrom: '%s'\n", derivedFrom);
 		}
 		free(derivedFrom);
 		if (prodFormat >= 8) {
@@ -314,28 +343,36 @@ int pdscan(efs_file_t *f)
 		line = NULL;
 
 		uint16_t subsysCount = getShort(f);
-		//printf("\tsubsysCount: %04x\n", subsysCount);
+		if (verbose) {
+			printf("\tsubsysCount: %04x\n", subsysCount);
+		}
 
 		for(int subsys = 0; subsys < subsysCount; subsys++) {
-			//printf("\tsubsys #%d:\n", subsys);
 			uint16_t subsysFlags = getShort(f);
-			//printf("\t\tsubsysFlags: %04x\n", subsysFlags);
-			if (subsysFlags & 0x0002) {
-				//printf("\t\tdefault\n");
-			}
-			if (subsysFlags & 0x0400) {
-				//printf("\t\tpatch\n");
-			}
-			if (~subsysFlags & 0x0800) {
-				//printf("\t\tminiroot\n");
-			}
-			if (subsysFlags & 0x8000) {
-				//printf("\t\toverlays (see 'b' attribute)\n");
+			if (verbose) {
+				printf("\tsubsys #%d:\n", subsys);
+				printf("\t\tsubsysFlags: %04x\n", subsysFlags);
+				if (subsysFlags & 0x0002) {
+					printf("\t\tdefault\n");
+				}
+				if (subsysFlags & 0x0400) {
+					printf("\t\tpatch\n");
+				}
+				if (~subsysFlags & 0x0800) {
+					printf("\t\tminiroot\n");
+				}
+				if (subsysFlags & 0x8000) {
+					printf("\t\toverlays (see 'b' attribute)\n");
+				}
 			}
 			char *subsysName = getString(f);
-			//printf("\t\tsubsysName: '%s'\n", subsysName);
 			char *subsysId = getString(f);
-			//printf("\t\tsubsysId: '%s'\n", subsysId);
+
+			if (verbose) {
+				printf("\t\tsubsysName: '%s'\n", subsysName);
+				printf("\t\tsubsysId: '%s'\n", subsysId);
+			}
+
 			char *line = NULL;
 			int rc;
 			rc = asprintf(&line, "%s.%s.%s", shortName, imageName, subsysName);
@@ -344,10 +381,12 @@ int pdscan(efs_file_t *f)
 			free(line);
 			line = NULL;
 			char *subsysExpr = getString(f);
-			//printf("\t\tsubsysExpr: '%s'\n", subsysExpr);
 			time_t subsysInstallDate = getInt(f);
-			if (subsysFlags & 0x0080) {
-				//printf("\t\tsubsysInstallDate: %s", ctime(&subsysInstallDate));
+			if (verbose) {
+				printf("\t\tsubsysExpr: '%s'\n", subsysExpr);
+				if (subsysFlags & 0x0080) {
+					printf("\t\tsubsysInstallDate: %s", ctime(&subsysInstallDate));
+				}
 			}
 
 			getRules(f);
@@ -357,11 +396,15 @@ int pdscan(efs_file_t *f)
 			free(subsysExpr);
 			if (prodFormat >= 5) {
 				char *altName = getString(f);
-				//printf("\t\taltName: '%s'\n", altName);
+				if (verbose) {
+					printf("\t\taltName: '%s'\n", altName);
+				}
 				free(altName);
 			}
 			if (prodFormat >= 6) {
-				//printf("\t\tincompats:\n");
+				if (verbose) {
+					printf("\t\tincompats:\n");
+				}
 				getRules(f);
 			}
 			if (prodFormat >= 8) {

@@ -60,6 +60,15 @@ size_t fsread(void *ptr, size_t size, size_t nmemb, fileslice_t *fs)
 	if (rc == -1) goto out_error;
 
 	/* Do the read */
+#if 0
+	printf("fread: ptr: %p, size: %zu, nmemb: %zu, fslice: %p, pos: %ld\n",
+		ptr,
+		size,
+		nmemb,
+		fs,
+		ftell(fs->f)
+	);
+#endif
 	rc2 = fread(ptr, size, nmemb, fs->f);
 
 	/* Save cursor */
