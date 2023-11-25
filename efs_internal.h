@@ -20,7 +20,8 @@
 #define EFS_MAXLBSIZE
 
 #define EFS_DIRECTEXTENTS 12
-#define EFS_MAXINDIRBBS 64
+//#define EFS_MAXINDIRBBS 64
+#define EFS_MAXINDIRBBS 128
 #define EFS_MAXEXTENTS 32767
 #define EFS_INODESPERPAGE (NBPC / sizeof(struct efs_dinode))
 #define EFS_MAXEXTENTLEN (256 - 8)

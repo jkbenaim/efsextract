@@ -109,7 +109,7 @@ int tar_emit(efs_t *efs, const char *filename)
 	if ((sb.st_mode & IFMT) == IFLNK) {
 		efs_file_t *src;
 		src = efs_fopen(efs, filename);
-		if (!src) err(1, "couldn't open efs file '%s'", filename);
+		if (!src) err(1, "couldn't open efs file '%s' as link", filename);
 		efs_fread(blk.lnk, sb.st_size, 1, src);
 		efs_fclose(src);
 		// also, set size to zero
@@ -149,7 +149,7 @@ int tar_emit(efs_t *efs, const char *filename)
 		printf("sb.st_size: %d, tailBytes: %zu\n", sb.st_size, tailBytes);
 #endif
 		src = efs_fopen(efs, filename);
-		if (!src) err(1, "couldn't open efs file '%s'", filename);
+		if (!src) errx(1, "couldn't open efs file '%s' as regular file", filename);
 		for (size_t blockNum = 0; blockNum < (sb.st_size / bufsiz); blockNum++) {
 			sz = efs_fread(buf, bufsiz, 1, src);
 			if (sz != 1)

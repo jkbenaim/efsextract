@@ -69,12 +69,6 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 			struct efs_extent ex;
 			unsigned offset;
 			ex = dinode->di_u.di_extents[i];
-#if 0
-			if (i == 0)
-				offset = 0;
-			else
-				offset = efs_extent_get_offset(ex);
-#endif
 			//printf("bbcursor:    %4x (%d)\n", bbcursor, i);
 			erc = efs_get_blocks(
 				ctx,
@@ -376,7 +370,7 @@ efs_file_t *efs_fopenat(
 	
 	efs_ino_t ino;
 	efs_file_t *out = NULL;
-	
+
 	ino = _efs_nameiat(ctx, dirp->ino, path);
 	if (ino == (efs_ino_t)(-1)) {
 		errno = ENOENT;
@@ -410,7 +404,7 @@ efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino)
 	__label__ out_error, out_ok;
 	efs_file_t *out = NULL;
 	if (!ctx) goto out_error;
-	
+
 	out = calloc(sizeof(efs_file_t), 1);
 	if (!out) goto out_error;
 	
