@@ -67,7 +67,6 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 		
 		for (unsigned i = 0; i < numindirect; i++) {
 			struct efs_extent ex;
-			unsigned offset;
 			ex = dinode->di_u.di_extents[i];
 			//printf("bbcursor:    %4x (%d)\n", bbcursor, i);
 			erc = efs_get_blocks(

@@ -218,10 +218,15 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	}
 	
 	rc = snprintf(blk.mode, sizeof(blk.mode), "%07o", iso9660_get_posix_filemode(st));
+	if (rc < 0) errx(1, "in snprintf");
 	rc = snprintf(blk.uid, sizeof(blk.uid), "%07o", 0);
+	if (rc < 0) errx(1, "in snprintf");
 	rc = snprintf(blk.gid, sizeof(blk.gid), "%07o", 0);
+	if (rc < 0) errx(1, "in snprintf");
 	rc = snprintf(blk.size, sizeof(blk.size), "%011o", st->size);
+	if (rc < 0) errx(1, "in snprintf");
 	rc = snprintf(blk.mtime, sizeof(blk.mtime), "%011lo", mktime(&st->tm));
+	if (rc < 0) errx(1, "in snprintf");
 
 	memset(blk.sum, ' ', sizeof(blk.sum));	// we'll fix the checksum later
 
@@ -248,6 +253,7 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	uint32_t sum = 0;
 	sum = tar_getsum(blk);
 	rc = snprintf(blk.sum, sizeof(blk.sum), "%07o", sum);
+	if (rc < 0) errx(1, "in snprintf");
 
 	sz = fwrite(&blk, sizeof(blk), 1, f);
 	if (sz != 1)

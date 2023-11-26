@@ -463,11 +463,6 @@ int main(int argc, char *argv[])
 
 					st = (iso9660_stat_t *) _cdio_list_node_data(b);
 					//iso9660_name_translate(st->filename, filename);
-					char *type2string[] = {
-						[_STAT_FILE] = "f",
-						[_STAT_DIR]  = "d",
-					};
-
 					path = mkpath(qe->path, st->filename);
 					if (strcmp(st->filename, ".") && strcmp(st->filename, "..")) {
 						if (!qflag) {
