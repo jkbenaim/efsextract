@@ -73,6 +73,11 @@ int tar_emit(efs_t *efs, const char *filename)
 	struct efs_stat sb = {0,};
 	int retval;
 
+	if (!filename) {
+		retval = -3;
+		goto out_error;
+	}
+
 	rc = efs_stat(efs, filename, &sb);
 	if (rc == -1) {
 		/* file not found */
@@ -193,6 +198,11 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	struct tarblk_s blk = {0,};
 	iso9660_stat_t *st = NULL;
 	int retval;
+
+	if (!filename) {
+		retval = -3;
+		goto out_error;
+	}
 
 	st = iso9660_ifs_stat_translate(ctx, filename);
 	if (!st) {

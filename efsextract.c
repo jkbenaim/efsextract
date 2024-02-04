@@ -465,7 +465,7 @@ int main(int argc, char *argv[])
 					//iso9660_name_translate(st->filename, filename);
 					path = mkpath(qe->path, st->filename);
 					if (strcmp(st->filename, ".") && strcmp(st->filename, "..")) {
-						if (!qflag) {
+						if (!qflag && path) {
 							printf("%s\n", path);
 						}
 						switch (st->type) {

@@ -204,6 +204,10 @@ size_t efs_fread_blocks(
 	efs_err_t erc;
 	struct efs_extent *ex;
 
+	if (!ptr) {
+		return 0;
+	}
+
 #if 0
 	printf("efs_fread_blocks: ptr: %p, lbn: %zu, numblocks: %zu, file: %p\n",
 		ptr,
@@ -620,6 +624,10 @@ int _efs_nextpath(
 ) {
 	const char *t;
 	off_t len;
+
+	if (!in) {
+		return -1;
+	}
 	
 	/* name too large */
 	if (strlen(in) > EFS_MAX_NAME) {
