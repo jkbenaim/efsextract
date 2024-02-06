@@ -290,6 +290,8 @@ size_t _efs_fread_aux(
 		file->pos += len;
 		ptr += len;
 		size -= len;
+		free(buf);
+		buf = NULL;
 	}
 
 	/* whole blocks? */
@@ -326,6 +328,8 @@ size_t _efs_fread_aux(
 		memcpy(ptr, buf, size);
 		file->pos += size;
 		ptr += size;
+		free(buf);
+		buf = NULL;
 	}
 
 	return 1;

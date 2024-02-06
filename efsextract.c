@@ -20,6 +20,7 @@
 #include "dvh.h"
 #include "efs.h"
 #include "efs_internal.h"
+#include "efs_nftw.h"
 #include "endian.h"
 #include "err.h"
 #include "hexdump.h"
@@ -36,26 +37,6 @@ int Wflag = 0;
 
 static void tryhelp(void);
 static void usage(void);
-
-char *mkpath(char *path, char *name)
-{
-	int rc;
-	char *out;
-
-	if (strlen(path) == 0) {
-		out = strdup(name);
-	} else {
-		size_t stringsize = strlen(path) + strlen("/") + strlen(name) + 1;
-		out = malloc(stringsize);
-		if (!out) err(1, "in malloc");
-
-		rc = snprintf(out, stringsize, "%s/%s", path, name);
-		if (rc >= stringsize)
-			errx(1, "in snprintf");
-		out[stringsize - 1] = '\0';
-	}
-	return out;
-}
 
 void mode2str(char *str, uint16_t mode)
 {
@@ -507,8 +488,10 @@ int main(int argc, char *argv[])
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open efs in '%s'", filename);
 	
-
+#if 0
 	queue_t q = queue_init();
+	if (!q)
+		err(1, "in queue_init");
 	queue_add_head(q, strdup(""));
 
 	if (outfile) {
@@ -564,6 +547,38 @@ nextfile:
 		queue_add_queue_head(q, dirq);
 	}
 	queue_free(q);
+#endif
+
+	if (outfile) {
+		rc = tar_create(outfile);
+		if (rc) err(1, "couldn't create archive '%s'", outfile);
+	}
+
+	int fn(const char *fpath, const struct efs_stat *sb) {
+		if (Wflag) {
+			pdprint(efs, fpath);
+			return 0;
+		}
+		if (!qflag) {
+			printf("%s\n", fpath);
+		}
+		if (!lflag) {
+			if (outfile) {
+				rc = tar_emit(efs, fpath);
+				if (rc == -1)
+					errx(1, "while writing to tar (emit failure): %d", rc);
+			} else {
+				emit_file(efs, fpath);
+			}
+		}
+
+		return 0;
+	}
+
+        if (Wflag) {
+                printf("   %-30s  %s\n\n", "Name", "Description");
+        }
+	efs_nftw(efs, "", fn);
 
 	if (outfile) {
 		rc = tar_close();
