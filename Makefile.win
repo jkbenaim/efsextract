@@ -1,29 +1,59 @@
+LIBCDIO_VERSION = 2.1.0
+LIBCDIO_NAME = libcdio-$(LIBCDIO_VERSION)
+HOST = i686-w64-mingw32
+CC = ${HOST}-gcc
+CXX = ${HOST}-g++
+LD = ${HOST}-ld
+WINDRES = ${HOST}-windres
+
 target  ?= efsextract
-objects := dvh.o efsextract.o efs.o efs_err.o fileslice.o hexdump.o namei.o pdscan.o progname.o queue.o tar.o
-#EXTRAS = -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -Wall -fanalyzer
-CFLAGS  += -std=gnu99 -Wall -ggdb -Wno-unused-variable ${EXTRAS}
-LDFLAGS += ${EXTRAS}
-LDLIBS  += -lws2_32
+objects := $(patsubst %.c,%.o,$(wildcard *.c)) resource.o
+
+#EXTRAS += -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -fanalyzer -Wall
+
+LDLIBS += -lws2_32 -lwinmm
+LDFLAGS += -static ${EXTRAS}
+CFLAGS  += -flto -std=gnu2x -Og -ggdb -Ilibcdio-install/include ${EXTRAS}
 
 .PHONY: all
 all:	$(target) README
+	strip $(target).exe
+	upx $(target).exe
 
 .PHONY: clean
 clean:
-	rm -f $(target).exe $(objects)
+	rm -f $(target) $(target).exe $(objects)
 
-.PHONY: install
-install: ${target} ${target}.1
-	install -m 755 ${target} /usr/local/bin
-	install -m 755 -d /usr/local/share/man/man1
-	install -m 644 ${target}.1 /usr/local/share/man/man1
-
-.PHONY: uninstall
-uninstall:
-	rm -f /usr/local/bin/${target} /usr/local/share/man/man1/${target}.1
+.PHONY: distclean
+distclean: clean
+	rm -Rf libcdio-build libcdio-install $(LIBCDIO_NAME)
 
 README: ${target}.1
 	MANWIDTH=77 man --nh --nj ./${target}.1 | col -b > $@
 
-$(target): $(objects)
-	$(CC) ${objects} ${LDLIBS} -o "$@"
+resource.o: resource.rc
+	$(WINDRES) $< -o $@
+
+$(target): $(objects) libcdio-install/lib/libiso9660.a libcdio-install/lib/libudf.a libcdio-install/lib/libcdio.a
+
+########################
+########################
+# libcdio stuff
+########################
+########################
+
+
+$(objects): libcdio-install/lib/libcdio.a libcdio-install/lib/libiso9660.a libcdio-install/lib/libudf.a
+
+
+libcdio-install/lib/libcdio.a libcdio-install/lib/libiso9660.a: libcdio-build/Makefile
+	$(MAKE) -C libcdio-build install MAKEFLAGS=
+
+libcdio-build/Makefile: $(LIBCDIO_NAME)/configure
+	mkdir -p libcdio-build
+	cd libcdio-build && ../$(LIBCDIO_NAME)/configure --disable-shared --enable-static --without-cd-drive --without-cd-info --without-cdda-player --without-cd-read --without-iso-info --without-iso-read --disable-cxx --disable-joliet --disable-rock --disable-cddb --disable-vcd-info --disable-example-progs --disable-cpp-progs --prefix="`realpath ../libcdio-install`" --host=${HOST}
+
+$(LIBCDIO_NAME)/configure: libraries/$(LIBCDIO_NAME).tar.gz
+	tar -zxvf $<
+	touch $@
+

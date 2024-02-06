@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
 			qflag = 1;
 			break;
 		case 'V':
-			fprintf(stderr, "%s\n", PROG_VERSION);
+			fprintf(stderr, "%s\n", PROG_EMBLEM);
 			exit(EXIT_SUCCESS);
 			break;
 		case 'W':

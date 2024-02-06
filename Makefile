@@ -1,9 +1,6 @@
 target  ?= efsextract
 objects := dvh.o efsextract.o efs.o efs_err.o efs_nftw.o fileslice.o hexdump.o namei.o pdscan.o progname.o queue.o tar.o
 
-LIBCDIO_VERSION = 2.1.0
-LIBCDIO_NAME = libcdio-$(LIBCDIO_VERSION)
-
 libs:=libiso9660
 
 #EXTRAS = -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -Wall
