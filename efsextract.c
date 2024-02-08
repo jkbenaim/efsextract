@@ -19,8 +19,6 @@
 
 #include "dvh.h"
 #include "efs.h"
-#include "efs_internal.h"
-#include "efs_nftw.h"
 #include "endian.h"
 #include "err.h"
 #include "hexdump.h"
@@ -41,7 +39,7 @@ static void usage(void);
 void mode2str(char *str, uint16_t mode)
 {
 	strcpy(str, "----------");
-	
+
 	switch (mode & IFMT) {
 	case IFIFO:
 		str[0] = 'p';
@@ -68,7 +66,7 @@ void mode2str(char *str, uint16_t mode)
 		str[0] = '?';
 		break;
 	}
-	
+
 	if (mode & 0400) str[1] = 'r';
 	if (mode & 0200) str[2] = 'w';
 	if (mode & 0100) str[3] = 'x';
@@ -253,7 +251,7 @@ int main(int argc, char *argv[])
 	int parnum = -1;
 
 	progname_init(argc, argv);
-	
+
 	while ((rc = getopt(argc, argv, "hLlo:p:qVW")) != -1)
 		switch (rc) {
 		case 'h':
@@ -327,7 +325,7 @@ int main(int argc, char *argv[])
 
 	if (Lflag && (lflag || qflag))
 		errx(1, "cannot combine L flag with other flags");
-		
+
 	if (Lflag) {
 		efs_err_t erc;
 		dvh_t *ctx = NULL;
@@ -372,15 +370,15 @@ int main(int argc, char *argv[])
 					name
 				);
 		}
-		
+
 		exit(0);
 	}
-	
+
 	efs_err_t erc;
 	dvh_t *dvh;
 	fileslice_t *par;
 	efs_t *efs;
-	
+
 	erc = dvh_open(&dvh, filename);
 	if ((erc != EFS_ERR_OK) && !outfile) {
 		errx(1, "couldn't find volume header in '%s'", filename);
@@ -396,7 +394,7 @@ int main(int argc, char *argv[])
 		if (rc) {
 			errx(1, "while creating tar");
 		}
-		
+
 		q = queue_init();
 		queue_add_head(q, strdup(""));
 
@@ -454,14 +452,14 @@ int main(int argc, char *argv[])
 		return 0;
 	} // end iso9660 branch
 
-	
+
 	par = dvh_getParSlice(dvh, parnum);
 	if (!par)
 		errx(1, "couldn't get par slice %u", parnum);
 	erc = efs_open(&efs, par);
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open efs in '%s'", filename);
-	
+
 #if 0
 	queue_t q = queue_init();
 	if (!q)
@@ -558,7 +556,7 @@ nextfile:
 		rc = tar_close();
 		if (rc) err(1, "couldn't close archive '%s'", outfile);
 	}
-	
+
 	efs_close(efs);
 	dvh_close(dvh);
 
@@ -574,7 +572,7 @@ static void tryhelp(void)
 
 static void usage(void)
 {
-	(void)fprintf(stderr, 
+	(void)fprintf(stderr,
 "Usage: %s [OPTION] [FILE]\n"
 "Extract files from the SGI CD image (or EFS file system) in FILE.\n"
 "\n"

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "dvh.h"
-#include "efs_err.h"
+#include "efs.h"
 #include "endian.h"
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(*x))
@@ -15,28 +15,28 @@ efs_err_t dvh_open(dvh_t **ctx, const char *filename)
 	int rc;
 	efs_err_t erc;
 	struct dvh_s dvh;
-	
+
 	/* Allocate dvh context */
 	*ctx = calloc(1, sizeof(dvh_t));
 	if (!*ctx) {
 		erc = EFS_ERR_NOMEM;
 		goto out_error;
 	}
-	
+
 	/* Open file */
 	(*ctx)->f = fopen(filename, "rb");
 	if (!(*ctx)->f) {
 		erc = EFS_ERR_NOENT;
 		goto out_error;
 	}
-	
+
 	/* Read volume header */
 	rc = fread(&dvh, sizeof(dvh), 1, (*ctx)->f);
 	if (rc != 1) {
 		erc = EFS_ERR_READFAIL;
 		goto out_error;
 	}
-	
+
 	/* Validate volume header magic */
 	if (be32toh(dvh.vh_magic) != VHMAGIC) {
 		erc = EFS_ERR_NOVH;
@@ -60,9 +60,9 @@ efs_err_t dvh_open(dvh_t **ctx, const char *filename)
 
 	/* Store dvh in context */
 	(*ctx)->dvh = dvh;
-	
+
 	return EFS_ERR_OK;
-	
+
 out_error:
 	if (*ctx && (*ctx)->f) fclose((*ctx)->f);
 	if (*ctx) free(*ctx);
@@ -76,7 +76,7 @@ efs_err_t dvh_close(dvh_t *ctx)
 		fclose(ctx->f);
 		free(ctx);
 	}
-	
+
 	return EFS_ERR_OK;
 }
 
@@ -122,11 +122,11 @@ fileslice_t *dvh_getParSlice(dvh_t *ctx, int parNum)
 	__label__ out_error;
 	struct dvh_pt_s pt;
 	fileslice_t *fs = NULL;
-	
+
 	pt = dvh_getParInfo(ctx, parNum);
 	if (pt.pt_nblks == 0)
 		goto out_error;
-	
+
 	fs = fsopen(ctx->f, BLKSIZ * pt.pt_firstlbn, BLKSIZ * pt.pt_nblks);
 	return fs;
 
@@ -153,7 +153,7 @@ struct dvh_vd_s dvh_getFileInfo(dvh_t *ctx, int fileNum)
 {
 	struct dvh_vd_s vd;
 	memset(&vd, 0, sizeof(vd));
-	
+
 	if (fileNum >= NVDIR) return vd;
 	if (fileNum < 0) return vd;
 

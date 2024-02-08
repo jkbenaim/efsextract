@@ -5,7 +5,6 @@
 #include <cdio/iso9660.h>
 
 #include "efs.h"
-#include "efs_internal.h"
 #include "err.h"
 #include "tar.h"
 
@@ -100,7 +99,7 @@ int tar_emit(efs_t *efs, const char *filename)
 		/* short file name */
 		strncpy(blk.name, filename, sizeof(blk.name));
 	}
-	
+
 	rc = snprintf(blk.mode, sizeof(blk.mode), "%07o", sb.st_mode & 0777);
 	rc = snprintf(blk.uid, sizeof(blk.uid), "%07o", sb.st_uid);
 	rc = snprintf(blk.gid, sizeof(blk.gid), "%07o", sb.st_gid);
@@ -120,20 +119,20 @@ int tar_emit(efs_t *efs, const char *filename)
 		// also, set size to zero
 		rc = snprintf(blk.size, sizeof(blk.size), "%011o", 0);
 	}
-	
+
 	memcpy(blk.magic, "ustar", sizeof(blk.magic));
 
 	blk.ver[0] = blk.ver[1] = '0';
 
 	blk.username[0] = '\0';
 	blk.groupname[0] = '\0';
-	
+
 	if (((sb.st_mode & IFMT) == IFCHR)
 	  || ((sb.st_mode & IFMT) == IFBLK)) {
 		rc = snprintf(blk.devmajor, sizeof(blk.devmajor), "%07o", sb.st_major);
 		rc = snprintf(blk.devminor, sizeof(blk.devminor), "%07o", sb.st_minor);
 	}
-	
+
 	// calculate checksum
 	uint32_t sum = 0;
 	sum = tar_getsum(blk);
@@ -142,7 +141,7 @@ int tar_emit(efs_t *efs, const char *filename)
 	sz = fwrite(&blk, sizeof(blk), 1, f);
 	if (sz != 1)
 		err(1, "couldn't write to archive");
-	
+
 	if ((sb.st_mode & IFMT) == IFREG) {
 		size_t tailBytes;
 		efs_file_t *src;
@@ -226,7 +225,7 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 		/* short file name */
 		strncpy(blk.name, filename, sizeof(blk.name));
 	}
-	
+
 	rc = snprintf(blk.mode, sizeof(blk.mode), "%07o", iso9660_get_posix_filemode(st));
 	if (rc < 0) errx(1, "in snprintf");
 	rc = snprintf(blk.uid, sizeof(blk.uid), "%07o", 0);
@@ -258,7 +257,7 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 
 	blk.username[0] = '\0';
 	blk.groupname[0] = '\0';
-	
+
 	// calculate checksum
 	uint32_t sum = 0;
 	sum = tar_getsum(blk);
@@ -268,7 +267,7 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	sz = fwrite(&blk, sizeof(blk), 1, f);
 	if (sz != 1)
 		err(1, "couldn't write to archive");
-	
+
 	if ((st->type == _STAT_FILE) && st->size) {
 		size_t bufsiz = st->size + ISO_BLOCKSIZE;
 		uint8_t *buf = calloc(bufsiz, 1);

@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include "efs_err.h"
+#include "efs.h"
 #include "fileslice.h"
 
 #define VDNAMESIZE 8

@@ -9,7 +9,6 @@
 #include <unistd.h>
 
 #include "efs.h"
-#include "efs_internal.h"
 #include "endian.h"
 #include "err.h"
 #include "pdscan.h"
@@ -30,7 +29,7 @@ int is_pd(efs_t *efs, const char *path)
 	rc = efs_stat(efs, path, &sb);
 	if (rc == -1)
 		return -1;
-	
+
 	if (IFREG != (sb.st_mode & IFMT))
 		return false;
 	if (sb.st_size < 16) {
@@ -45,7 +44,7 @@ int is_pd(efs_t *efs, const char *path)
 		efs_fclose(f);
 		return -3;
 	}
-	
+
 	if ((buf[0] == 'p') && (buf[1] == 'd')) {
 		efs_fclose(f);
 		return true;
@@ -101,7 +100,7 @@ uint32_t getInt(efs_file_t *f)
 	out += getShort(f);
 	return out;
 }
-	
+
 char *getCstring(efs_file_t *f)
 {
 	char *out = NULL;
