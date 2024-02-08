@@ -12,10 +12,74 @@
 #include "efs_internal.h"
 #include "endian.h"
 #include "err.h"
+#include "pdscan.h"
 
 #define ARRAY_LENGTH(x) (sizeof(x)/sizeof(*x))
 
 const bool verbose = false;
+
+// returns true or false, or a negative to indicate error
+int is_pd(efs_t *efs, const char *path)
+{
+	struct efs_stat sb;
+	efs_file_t *f;
+	int rc;
+	uint8_t buf[BLKSIZ];
+	size_t sz;
+
+	rc = efs_stat(efs, path, &sb);
+	if (rc == -1)
+		return -1;
+	
+	if (IFREG != (sb.st_mode & IFMT))
+		return false;
+	if (sb.st_size < 16) {
+		return false;
+	}
+	f = efs_fopen(efs, path);
+	if (!f)
+		return -2;
+
+	sz = efs_fread(&buf, BLKSIZ, 1, f);
+	if (sz != 1) {
+		efs_fclose(f);
+		return -3;
+	}
+	
+	if ((buf[0] == 'p') && (buf[1] == 'd')) {
+		efs_fclose(f);
+		return true;
+	} else {
+		efs_fclose(f);
+		return false;
+	}
+}
+
+void pdprint(efs_t *efs, const char *path)
+{
+	struct efs_stat sb;
+	efs_file_t *f;
+	int rc;
+
+	rc = efs_stat(efs, path, &sb);
+	if (rc == -1)
+		err(1, "couldn't get stat for '%s'", path);
+
+	if (IFREG != (sb.st_mode & IFMT)) {
+		return;
+	}
+	if (sb.st_size < 16) {
+		return;
+	}
+	f = efs_fopen(efs, path);
+	if (f) {
+		pdscan(f);
+		efs_fclose(f);
+		f = NULL;
+	} else {
+		//warnx("couldn't open efs file '%s'\n", path);
+	}
+}
 
 uint16_t getShort(efs_file_t *f)
 {

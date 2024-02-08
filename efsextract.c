@@ -245,32 +245,6 @@ done:
 	}
 }
 
-void pdprint(efs_t *efs, const char *path)
-{
-	struct efs_stat sb;
-	efs_file_t *f;
-	int rc;
-
-	rc = efs_stat(efs, path, &sb);
-	if (rc == -1)
-		err(1, "couldn't get stat for '%s'", path);
-
-	if (IFREG != (sb.st_mode & IFMT)) {
-		return;
-	}
-	if (sb.st_size < 16) {
-		return;
-	}
-	f = efs_fopen(efs, path);
-	if (f) {
-		pdscan(f);
-		efs_fclose(f);
-		f = NULL;
-	} else {
-		//warnx("couldn't open efs file '%s'\n", path);
-	}
-}
-
 int main(int argc, char *argv[])
 {
 	char *filename = NULL;
@@ -478,7 +452,7 @@ int main(int argc, char *argv[])
 		tar_close();
 		ctx = NULL;
 		return 0;
-	}
+	} // end iso9660 branch
 
 	
 	par = dvh_getParSlice(dvh, parnum);
