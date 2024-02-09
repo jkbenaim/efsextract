@@ -1,5 +1,5 @@
 target  ?= efsextract
-objects := dvh.o efsextract.o efs.o fileslice.o hexdump.o pdscan.o progname.o queue.o tar.o
+objects := efsextract.o efs.o hexdump.o pdscan.o progname.o tar.o
 
 libs:=libiso9660
 

@@ -17,7 +17,6 @@
 #include <sys/sysmacros.h>
 #endif
 
-#include "dvh.h"
 #include "efs.h"
 #include "endian.h"
 #include "err.h"
@@ -25,7 +24,6 @@
 #include "pdscan.h"
 #include "progname.h"
 #include "tar.h"
-#include "queue.h"
 #include "version.h"
 
 int qflag = 0;
