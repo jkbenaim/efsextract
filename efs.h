@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#define ARRAY_SIZE(x) (sizeof(x)/sizeof(*x))
+
 #define BLKSIZ 512
 #define EFS_BLK_SB	(1)
 #define EFS_BLK_ROOTINO	(2)
@@ -39,7 +41,91 @@
 #define ISGID	02000
 #define ISVTX	01000
 
-#define ARRAY_SIZE(x) (sizeof(x)/sizeof(*x))
+#define EFS_DIRBSHIFT	9
+#define EFS_DIRBSIZE	(1<<EFS_DIRBSHIFT)
+#define EFS_DIRBMASK	(EFS_DIRBSIZE-1)
+
+#define EFS_DENTSIZE	(sizeof(struct efs_dent) - 3 + 1)
+#define EFS_MAX_NAME	255
+#define EFS_DIRBLK_HEADERSIZE	4
+
+#define EFS_DIRBLK_MAGIC	0xbeef
+/*
+ * Locations of the efs superblock, bitmap and root inode.
+ */
+#define	EFS_SUPERBB	(1)			/* bb # of the superblock */
+#define	EFS_BITMAPBB	(2)			/* bb of the bitmap, pre 3.3*/
+#define	EFS_SUPERBOFF	BBTOB(EFS_SUPERBB)	/* superblock byte offset */
+#define	EFS_BITMAPBOFF	BBTOB(EFS_BITMAPBB)	/* bitmap byte offset */
+#define	EFS_ROOTINO	((efs_ino_t)2)		/* where else... */
+
+/*
+ * Inode parameters.
+ */
+/* number of inodes per bb */
+#define	BBSHIFT	9
+#define BBSIZE (1<<BBSHIFT)
+#define	BBMASK	(BBSIZE - 1)
+#define	EFS_INOPBB	(1 << EFS_INOPBBSHIFT)
+#define	EFS_INOPBBSHIFT	(BBSHIFT - EFS_EFSINOSHIFT)
+#define	EFS_INOPBBMASK	(EFS_INOPBB - 1)
+
+/*
+ * Compute the number of inodes-per-cylinder-group (IPCG) and the number
+ * of inodes-per-basic-block (INOPBB).
+ */
+#define	EFS_COMPUTE_IPCG(fs) \
+	((short) ((fs)->fs_cgisize << EFS_INOPBBSHIFT))
+
+/*
+ * Layout macros.  These macro provide easy access to the layout by
+ * translating between sectors, basic blocks, and inode numbers.
+ * WARNING: The macro EFS_SETUP_SUPERB must be executed before most
+ * of these macros!
+ */
+
+/* inode number to bb, relative to cylinder group */
+#define	EFS_ITOCGBB(fs, i) \
+	((size_t) (((i) >> EFS_INOPBBSHIFT) % (fs)->fs_cgisize))
+
+/* inode number to offset from bb base */
+#define	EFS_ITOO(fs, i) \
+	((short) ((i) & EFS_INOPBBMASK))
+
+/* inode number to cylinder group */
+#define	EFS_ITOCG(fs, i) \
+	((short) ((i) / EFS_COMPUTE_IPCG(fs)))
+
+/* inode number to cylinder group inode number offset */
+#define	EFS_ITOCGOFF(fs, i) \
+	((short) ((i) % EFS_COMPUTE_IPCG(fs)))
+
+/* inode number to disk bb number */
+#define	EFS_ITOBB(fs, i) \
+	((size_t) ((fs)->fs_firstcg + \
+		    (EFS_ITOCG(fs, i) * (fs)->fs_cgfsize) + \
+		    EFS_ITOCGBB(fs, i)))
+
+/* bb to cylinder group number */
+#define	EFS_BBTOCG(fs, bb) \
+	((short) ((bb - (fs)->fs_firstcg) / (fs)->fs_cgfsize))
+
+/* cylinder group number to disk bb of base of cg */
+#define	EFS_CGIMIN(fs, cg) \
+	((size_t) ((fs)->fs_firstcg + (cg) * (fs)->fs_cgfsize))
+
+/* inode number to base inode number in its chunk */
+#define	EFS_ITOCHUNKI(fs, cg, inum) \
+	(((((inum) - (cg)->cg_firsti) / (fs)->fs_inopchunk) * \
+	  (fs)->fs_inopchunk) + (cg)->cg_firsti)
+
+#define VDNAMESIZE 8
+#define VHMAGIC 0x0be5a941
+#define NPARTAB 16
+#define NVDIR 15
+#define BFNAMESIZE 16
+#define NPTYPES 16
+#define BLKSIZ 512
 
 typedef struct _fileslice_s {
 	FILE *f;
@@ -117,91 +203,12 @@ struct efs_dent {
 	char d_name[];
 } __attribute__((packed));
 
-#define EFS_DIRBSHIFT	9
-#define EFS_DIRBSIZE	(1<<EFS_DIRBSHIFT)
-#define EFS_DIRBMASK	(EFS_DIRBSIZE-1)
-
-#define EFS_DENTSIZE	(sizeof(struct efs_dent) - 3 + 1)
-#define EFS_MAX_NAME	255
-#define EFS_DIRBLK_HEADERSIZE	4
-
-#define EFS_DIRBLK_MAGIC	0xbeef
-
 struct efs_dirblk {
 	uint16_t magic;
 	uint8_t  firstused;
 	uint8_t  slots;
 	uint8_t space[EFS_DIRBSIZE - EFS_DIRBLK_HEADERSIZE];
 } __attribute__((packed));
-
-/*
- * Locations of the efs superblock, bitmap and root inode.
- */
-#define	EFS_SUPERBB	(1)			/* bb # of the superblock */
-#define	EFS_BITMAPBB	(2)			/* bb of the bitmap, pre 3.3*/
-#define	EFS_SUPERBOFF	BBTOB(EFS_SUPERBB)	/* superblock byte offset */
-#define	EFS_BITMAPBOFF	BBTOB(EFS_BITMAPBB)	/* bitmap byte offset */
-#define	EFS_ROOTINO	((efs_ino_t)2)		/* where else... */
-
-/*
- * Inode parameters.
- */
-/* number of inodes per bb */
-#define	BBSHIFT	9
-#define BBSIZE (1<<BBSHIFT)
-#define	BBMASK	(BBSIZE - 1)
-#define	EFS_INOPBB	(1 << EFS_INOPBBSHIFT)
-#define	EFS_INOPBBSHIFT	(BBSHIFT - EFS_EFSINOSHIFT)
-#define	EFS_INOPBBMASK	(EFS_INOPBB - 1)
-
-/*
- * Compute the number of inodes-per-cylinder-group (IPCG) and the number
- * of inodes-per-basic-block (INOPBB).
- */
-#define	EFS_COMPUTE_IPCG(fs) \
-	((short) ((fs)->fs_cgisize << EFS_INOPBBSHIFT))
-
-/*
- * Layout macros.  These macro provide easy access to the layout by
- * translating between sectors, basic blocks, and inode numbers.
- * WARNING: The macro EFS_SETUP_SUPERB must be executed before most
- * of these macros!
- */
-
-/* inode number to bb, relative to cylinder group */
-#define	EFS_ITOCGBB(fs, i) \
-	((size_t) (((i) >> EFS_INOPBBSHIFT) % (fs)->fs_cgisize))
-
-/* inode number to offset from bb base */
-#define	EFS_ITOO(fs, i) \
-	((short) ((i) & EFS_INOPBBMASK))
-
-/* inode number to cylinder group */
-#define	EFS_ITOCG(fs, i) \
-	((short) ((i) / EFS_COMPUTE_IPCG(fs)))
-
-/* inode number to cylinder group inode number offset */
-#define	EFS_ITOCGOFF(fs, i) \
-	((short) ((i) % EFS_COMPUTE_IPCG(fs)))
-
-/* inode number to disk bb number */
-#define	EFS_ITOBB(fs, i) \
-	((size_t) ((fs)->fs_firstcg + \
-		    (EFS_ITOCG(fs, i) * (fs)->fs_cgfsize) + \
-		    EFS_ITOCGBB(fs, i)))
-
-/* bb to cylinder group number */
-#define	EFS_BBTOCG(fs, bb) \
-	((short) ((bb - (fs)->fs_firstcg) / (fs)->fs_cgfsize))
-
-/* cylinder group number to disk bb of base of cg */
-#define	EFS_CGIMIN(fs, cg) \
-	((size_t) ((fs)->fs_firstcg + (cg) * (fs)->fs_cgfsize))
-
-/* inode number to base inode number in its chunk */
-#define	EFS_ITOCHUNKI(fs, cg, inum) \
-	(((((inum) - (cg)->cg_firsti) / (fs)->fs_inopchunk) * \
-	  (fs)->fs_inopchunk) + (cg)->cg_firsti)
 
 struct efs_sb efstoh (struct efs_sb efs);
 struct efs_dinode efs_dinodetoh(struct efs_dinode inode);
@@ -291,14 +298,6 @@ struct queue_s {
 	struct qent_s *tail;
 };
 typedef struct queue_s* queue_t;
-
-#define VDNAMESIZE 8
-#define VHMAGIC 0x0be5a941
-#define NPARTAB 16
-#define NVDIR 15
-#define BFNAMESIZE 16
-#define NPTYPES 16
-#define BLKSIZ 512
 
 enum partition_type_e {
 	PT_VOLHDR = 0,

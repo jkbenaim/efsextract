@@ -1046,7 +1046,7 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 		if (sRc != 1) errx(1, "while reading dirblk blk");
 		if (dirblk.magic != htobe16(EFS_DIRBLK_MAGIC)) {
 			warnx("skipping block %u", blk);
-			hexdump(&dirblk, BLKSIZ);
+			//hexdump(&dirblk, BLKSIZ);
 			continue;
 		}
 		for (unsigned slot = 0; slot < dirblk.slots; slot++) {
