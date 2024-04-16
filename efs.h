@@ -133,6 +133,70 @@ typedef struct _fileslice_s {
 	fpos_t cur;
 } fileslice_t;
 
+enum partition_type_e {
+	PT_VOLHDR = 0,
+	PT_BSD = 4,
+	PT_SYSV = 5,
+	PT_VOLUME = 6,
+	PT_EFS = 7,
+	PT_XFS = 10,
+};
+
+struct dvh_dp_s {
+	uint8_t  dp_skew;
+	uint8_t  dp_gap1;
+	uint8_t  dp_gap2;
+	uint8_t  dp_spares_cyl;
+	uint16_t dp_cyls;
+	uint16_t dp_shd0;
+	uint16_t dp_trks0;
+	uint8_t  dp_ctq_depth;
+	uint8_t  dp_cylshi;
+	uint16_t dp_unused;
+	uint16_t dp_secs;
+	uint16_t dp_secbytes;
+	uint16_t dp_interleave;
+	int32_t  dp_flags;
+	int32_t  dp_datarate;
+	int32_t  dp_nretries;
+	int32_t  dp_mspw;
+	uint16_t dp_xgap1;
+	uint16_t dp_xsync;
+	uint16_t dp_xrdly;
+	uint16_t dp_xgap2;
+	uint16_t dp_xrgate;
+	uint16_t dp_xwcont;
+} __attribute__((packed));
+
+struct dvh_vd_s {
+	char vd_name[VDNAMESIZE];
+	int32_t vd_lbn;
+	int32_t vd_nbytes;
+} __attribute__((packed));
+
+struct dvh_pt_s {
+	int32_t pt_nblks;
+	int32_t pt_firstlbn;
+	int32_t pt_type;
+} __attribute__((packed));
+
+struct dvh_s {
+	uint32_t vh_magic;
+	uint16_t vh_rootpt;
+	uint16_t vh_swappt;
+	char     vh_bootfile[BFNAMESIZE];
+	struct dvh_dp_s vh_dp;
+	struct dvh_vd_s vh_pd[NVDIR];
+	struct dvh_pt_s vh_pt[NPARTAB];
+	int32_t  vh_csum;
+	int32_t  vh_fill;
+} __attribute__((packed));
+
+typedef struct dvh_ctx {
+	FILE *f;
+	struct dvh_s dvh;
+} dvh_t;
+
 typedef uint32_t efs_ino_t;
 
 struct efs_sb {
@@ -220,6 +284,7 @@ enum efs_fstype {
 };
 
 typedef struct efs_ctx {
+	dvh_t *dvh;
 	fileslice_t *fs;
 	struct efs_sb sb;
 	size_t nblks;
@@ -277,7 +342,7 @@ struct efs_stat {
 
 typedef enum {
 	EFS_ERR_OK = 0,
-	EFS_ERR_INVAL,
+	EFS_ERR_INVAL = 100,
 	EFS_ERR_NOENT,
 	EFS_ERR_NOMEM,
 	EFS_ERR_READFAIL,
@@ -286,6 +351,10 @@ typedef enum {
 	EFS_ERR_BADVH,
 	EFS_ERR_SBMAGIC,
 	EFS_ERR_PARTYPE,
+	EFS_ERR_BADPAR,
+	EFS_ERR_IS_BSD,
+	EFS_ERR_IS_ISO9660,
+	EFS_ERR_IS_XFS,
 } efs_err_t;
 
 struct qent_s {
@@ -298,70 +367,6 @@ struct queue_s {
 	struct qent_s *tail;
 };
 typedef struct queue_s* queue_t;
-
-enum partition_type_e {
-	PT_VOLHDR = 0,
-	PT_BSD = 4,
-	PT_SYSV = 5,
-	PT_VOLUME = 6,
-	PT_EFS = 7,
-	PT_XFS = 10,
-};
-
-struct dvh_dp_s {
-	uint8_t  dp_skew;
-	uint8_t  dp_gap1;
-	uint8_t  dp_gap2;
-	uint8_t  dp_spares_cyl;
-	uint16_t dp_cyls;
-	uint16_t dp_shd0;
-	uint16_t dp_trks0;
-	uint8_t  dp_ctq_depth;
-	uint8_t  dp_cylshi;
-	uint16_t dp_unused;
-	uint16_t dp_secs;
-	uint16_t dp_secbytes;
-	uint16_t dp_interleave;
-	int32_t  dp_flags;
-	int32_t  dp_datarate;
-	int32_t  dp_nretries;
-	int32_t  dp_mspw;
-	uint16_t dp_xgap1;
-	uint16_t dp_xsync;
-	uint16_t dp_xrdly;
-	uint16_t dp_xgap2;
-	uint16_t dp_xrgate;
-	uint16_t dp_xwcont;
-} __attribute__((packed));
-
-struct dvh_vd_s {
-	char vd_name[VDNAMESIZE];
-	int32_t vd_lbn;
-	int32_t vd_nbytes;
-} __attribute__((packed));
-
-struct dvh_pt_s {
-	int32_t pt_nblks;
-	int32_t pt_firstlbn;
-	int32_t pt_type;
-} __attribute__((packed));
-
-struct dvh_s {
-	uint32_t vh_magic;
-	uint16_t vh_rootpt;
-	uint16_t vh_swappt;
-	char     vh_bootfile[BFNAMESIZE];
-	struct dvh_dp_s vh_dp;
-	struct dvh_vd_s vh_pd[NVDIR];
-	struct dvh_pt_s vh_pt[NPARTAB];
-	int32_t  vh_csum;
-	int32_t  vh_fill;
-} __attribute__((packed));
-
-typedef struct dvh_ctx {
-	FILE *f;
-	struct dvh_s dvh;
-} dvh_t;
 
 extern efs_err_t dvh_open(dvh_t **ctx, const char *filename);
 extern efs_err_t dvh_close(dvh_t *ctx);
@@ -413,6 +418,7 @@ extern efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t n
 extern efs_err_t efs_open(efs_t **ctx, fileslice_t *f);
 extern void efs_close(efs_t *ctx);
 extern struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino);
+extern efs_err_t efs_easy_open(efs_t **ctx, const char *filename);
 
 extern efs_ino_t efs_namei(efs_t *ctx, const char *name);
 

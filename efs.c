@@ -169,6 +169,8 @@ out_error:
 void efs_close(efs_t *ctx)
 {
 	if (!ctx) return;
+	if (ctx->dvh)
+		dvh_close(ctx->dvh);
 	fsclose(ctx->fs);
 	free(ctx);
 }
@@ -354,7 +356,6 @@ int efs_nftw(
 	const char *dirpath,
 	int (*fn)(const char *fpath, const struct efs_stat *sb)
 ) {
-	__label__ out_error;
 	int rc;
 	queue_t q;
 	struct qent_s *qe;
@@ -415,8 +416,6 @@ nextfile:
 
 
 	return 0;
-out_error:
-	return -1;
 }
 
 const char *efs_strerror(efs_err_t e)
@@ -442,8 +441,16 @@ const char *efs_strerror(efs_err_t e)
 			return "superblock not found";
 		case EFS_ERR_PARTYPE:
 			return "unrecognized partition type";
+		case EFS_ERR_BADPAR:
+			return "bad partition";
+		case EFS_ERR_IS_BSD:
+			return "RISCos format is not supported";
+		case EFS_ERR_IS_ISO9660:
+			return "ISO9660 format is not supported";
+		case EFS_ERR_IS_XFS:
+			return "XFS format is not supported";
 		default:
-			return "";
+			return "unknown error";
 	}
 }
 
@@ -1448,7 +1455,24 @@ efs_err_t dvh_open(dvh_t **ctx, const char *filename)
 
 	/* Validate volume header magic */
 	if (be32toh(dvh.vh_magic) != VHMAGIC) {
+		size_t zrc;
+		const uint8_t isomagic[8] = {0x01, 0x43, 0x44, 0x30, 0x30, 0x31, 0x01, 0x00};
+		uint8_t buf[sizeof(isomagic)];
 		erc = EFS_ERR_NOVH;
+
+		/* Quick diagnostic: is this ISO9660? */
+		rc = fseek((*ctx)->f, 0x8000, SEEK_SET);
+		if (rc == -1)
+			goto out_error;
+
+		zrc = fread(buf, sizeof(buf), 1, (*ctx)->f);
+		if (zrc != 1)
+			goto out_error;
+
+		rc = memcmp(buf, isomagic, sizeof(isomagic));
+		if (rc == 0)
+			erc = EFS_ERR_IS_ISO9660;
+
 		goto out_error;
 	}
 
@@ -1595,3 +1619,81 @@ const char *dvh_getNameForType(unsigned parType)
 		break;
 	}
 }
+
+efs_err_t efs_easy_open(efs_t **ctx, const char *filename)
+{
+	__label__ out_error;
+	efs_err_t erc;
+	dvh_t *dvh = NULL;
+	fileslice_t *par = NULL;
+	efs_t *efs = NULL;
+	int par_efs = -1;
+	bool par_xfs = false;
+	bool par_bsd = false;
+
+	/* Check arguments for validity. */
+	if (!ctx || !filename)
+		return EFS_ERR_INVAL;
+
+	/* Open DVH. */
+	erc = dvh_open(&dvh, filename);
+	if (erc != EFS_ERR_OK) {
+		goto out_error;
+	}
+
+	/* Detect partition types. */
+	for (int n = 0; n < NPARTAB; n++) {
+		struct dvh_pt_s pt;
+		pt = dvh_getParInfo(dvh, n);
+		switch (pt.pt_type) {
+		case PT_SYSV:
+			/* fall-thru */
+		case PT_EFS:
+			if (par_efs == -1)
+				par_efs = n;
+			break;
+		case PT_XFS:
+			par_xfs = true;
+			break;
+		case PT_BSD:
+			par_bsd = true;
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (par_efs == -1) {
+		if (par_xfs) {
+			erc = EFS_ERR_IS_XFS;
+		} else if (par_bsd) {
+			erc = EFS_ERR_IS_BSD;
+		} else {
+			erc = EFS_ERR_PARTYPE;
+		}
+		goto out_error;
+	}
+
+	par = dvh_getParSlice(dvh, par_efs);
+	if (!par) {
+		erc = EFS_ERR_BADPAR;
+		goto out_error;
+	}
+
+	erc = efs_open(&efs, par);
+	if (erc != EFS_ERR_OK)
+		goto out_error;
+	
+	efs->dvh = dvh;
+
+	*ctx = efs;
+	return erc;
+
+out_error:
+	if (par)
+		fsclose(par);
+	if (dvh)
+		dvh_close(dvh);
+	return erc;
+}
+
