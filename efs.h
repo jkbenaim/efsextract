@@ -373,6 +373,7 @@ extern efs_err_t dvh_close(dvh_t *ctx);
 extern fileslice_t *dvh_getParSlice(dvh_t *ctx, int parNum);
 extern struct dvh_pt_s dvh_getParInfo(dvh_t *ctx, int parNum);
 extern struct dvh_vd_s dvh_getFileInfo(dvh_t *ctx, int fileNum);
+extern void *dvh_readFile(dvh_t *ctx, int fileNum);
 extern const char *dvh_getNameForType(unsigned parType);
 
 extern fileslice_t *fsopen(FILE *f, size_t base, size_t size);

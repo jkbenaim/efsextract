@@ -38,17 +38,19 @@ OPTIONS
 
        -q     Do not show file listing while extracting.
 
+       -V     Print version information on standard output and exit
+	      successfully.
+
        -W     Instead of extracting, scan the image for `inst' packages and
 	      list them.
 
-       -V     Print version information on standard output and exit
-	      successfully.
+       -X     Extract bootfiles from the volume header.
 
 AUTHOR
        Jason Benaim <jkbenaim@gmail.com>
 
 COPYRIGHT
-       Copyright © 2023 Jason Benaim.
+       Copyright © 2023-2024 Jason Benaim.
        Licensed under the GNU GPL version 3 or later.
        This is free software; you are free to change and redistribute it.
        There is NO WARRANTY, to the extent permitted by law.

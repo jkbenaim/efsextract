@@ -30,6 +30,7 @@ int qflag = 0;
 int lflag = 0;
 int Lflag = 0;
 int Wflag = 0;
+int Xflag = 0;
 
 static void tryhelp(void);
 static void usage(void);
@@ -250,7 +251,7 @@ int main(int argc, char *argv[])
 
 	progname_init(argc, argv);
 
-	while ((rc = getopt(argc, argv, "hLlo:p:qVW")) != -1)
+	while ((rc = getopt(argc, argv, "hLlo:p:qVWX")) != -1)
 		switch (rc) {
 		case 'h':
 			usage();
@@ -306,11 +307,30 @@ int main(int argc, char *argv[])
 			}
 			Wflag = 1;
 			break;
+		case 'X':
+			if (Xflag != 0) {
+				warnx("multiple use of `-X'");
+				tryhelp();
+			}
+			Xflag = 1;
+			break;
 		default:
 			tryhelp();
 		}
 	argc -= optind;
 	argv += optind;
+
+	// -L flag: cannot be combined with other flags
+	if (Lflag && (lflag || qflag || Wflag))
+		errx(1, "cannot combine -L flag with other flags");
+	
+	// -X flag: can be combined with -q flag, but nothing else
+	if (Xflag && (lflag || Lflag || Wflag))
+		errx(1, "cannot combine -X flag with other flags");
+	if (Xflag && outfile)
+		errx(1, "cannot combine -X flag with -o");
+	
+	// grab filename as first un-flagged argument
 	if (*argv != NULL) {
 		// printf("got filename\n");
 		filename = *argv;
@@ -318,11 +338,9 @@ int main(int argc, char *argv[])
 		warnx("must specify a file");
 		tryhelp();
 	}
+
 	if (parnum == -1)
 		parnum = 7;
-
-	if (Lflag && (lflag || qflag))
-		errx(1, "cannot combine L flag with other flags");
 
 	if (Lflag) {
 		efs_err_t erc;
@@ -458,66 +476,41 @@ int main(int argc, char *argv[])
 	if (erc != EFS_ERR_OK)
 		errefs(1, erc, "couldn't open efs in '%s'", filename);
 
-#if 0
-	queue_t q = queue_init();
-	if (!q)
-		err(1, "in queue_init");
-	queue_add_head(q, strdup(""));
+	if (Xflag) {
+		struct dvh_vd_s vd;
 
-	if (outfile) {
-		rc = tar_create(outfile);
-		if (rc) err(1, "couldn't create archive '%s'", outfile);
-	}
+		for (int fileNum = 0; fileNum < NVDIR; fileNum++) {
+			vd = dvh_getFileInfo(dvh, fileNum);
+			if (vd.vd_lbn != 0) {
+				void *filedata;
+				char filename[VDNAMESIZE + 1];
+				FILE *f = NULL;
 
-        if (Wflag) {
-                printf("   %-30s  %s\n\n", "Name", "Description");
-        }
+				strncpy(filename, vd.vd_name, VDNAMESIZE);
+				filename[VDNAMESIZE] = '\0';
 
-	struct qent_s *qe;
-	while ((qe = queue_dequeue(q))) {
-		efs_dir_t *dirp;
-		dirp = efs_opendir(efs, qe->path);
-		if (!dirp) errx(1, "couldn't open directory: '%s'", qe->path);
-		queue_t dirq = queue_init();
-		struct efs_dirent *de;
-		while ((de = efs_readdir(dirp))) {
-			struct efs_stat sb;
-			char *path;
-			rc = efs_stati(efs, de->d_ino, &sb);
-			if (rc == -1)
-				err(1, "couldn't get stat for '%s'", de->d_name);
-			path = mkpath(qe->path, de->d_name);
-			if (!path) goto nextfile;
-			if ((sb.st_mode & IFMT) == IFDIR) {
-				if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) {
-					goto nextfile;
+				filedata = dvh_readFile(dvh, fileNum);
+				if (filedata)
+					f = fopen(filename, "w");
+
+				if (f) {
+					size_t sRc;
+					sRc = fwrite(filedata, vd.vd_nbytes, 1, f);
+					fclose(f);
+					if (sRc != 1) {
+						unlink(filename);
+						err(1, "while writing file `%s'", filename);
+					} else if (!qflag) {
+						printf("%s\n", filename);
+					}
 				}
-				queue_add_head(dirq, strdup(path));
+				free(filedata);
 			}
-			if (!qflag && !Wflag)
-				printf("%s\n", path);
-			if (!lflag && !Wflag) {
-				if (outfile) {
-					rc = tar_emit(efs, path);
-					if (rc == -1)
-						errx(1, "while writing to tar (emit failure): %d", rc);
-				} else {
-					emit_file(efs, path);
-				}
-			}
-                        if (Wflag) {
-			        pdprint(efs, path);
-                        }
-nextfile:
-			free(path);
 		}
-		efs_closedir(dirp);
-		free(qe->path);
-		free(qe);
-		queue_add_queue_head(q, dirq);
+		efs_close(efs);
+		dvh_close(dvh);
+		return EXIT_SUCCESS;
 	}
-	queue_free(q);
-#endif
 
 	if (outfile) {
 		rc = tar_create(outfile);
@@ -581,8 +574,9 @@ static void usage(void)
 "           create a tar archive instead of extracting\n"
 "  -p NUM   use partition number (default: 7)\n"
 "  -q       do not show file listing while extracting\n"
-"  -W       scan image for packages and list them\n"
 "  -V       print program version\n"
+"  -W       scan image for packages and list them\n"
+"  -X       extract bootfiles from the volume headers\n"
 "\n"
 "Please report any bugs to <jkbenaim@gmail.com>.\n"
 ,		__progname

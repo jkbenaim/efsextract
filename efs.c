@@ -1593,6 +1593,34 @@ struct dvh_vd_s dvh_getFileInfo(dvh_t *ctx, int fileNum)
 	return ctx->dvh.vh_pd[fileNum];
 }
 
+void *dvh_readFile(dvh_t *ctx, int fileNum)
+{
+	int rc;
+	size_t sRc;
+	struct dvh_vd_s vd;
+	void *buf;
+
+	vd = dvh_getFileInfo(ctx, fileNum);
+	if (vd.vd_lbn == 0)
+		return NULL;
+
+	rc = fseek(ctx->f, 512L * (long)vd.vd_lbn, SEEK_SET);
+	if (rc == -1)
+		return NULL;
+	
+	buf = malloc(vd.vd_nbytes);
+	if (!buf)
+		return NULL;
+	
+	sRc = fread(buf, (long)vd.vd_nbytes, 1, ctx->f);
+	if (sRc != 1) {
+		free(buf);
+		return NULL;
+	}
+
+	return buf;
+}
+
 const char *dvh_getNameForType(unsigned parType)
 {
 	switch (parType) {
