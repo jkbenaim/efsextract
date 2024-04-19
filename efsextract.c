@@ -31,6 +31,8 @@ int lflag = 0;
 int Lflag = 0;
 int Wflag = 0;
 int Xflag = 0;
+char *outfile = NULL;
+efs_t *efs;
 
 static void tryhelp(void);
 static void usage(void);
@@ -242,10 +244,35 @@ done:
 	}
 }
 
+// This function is used as a callback for a later
+// invocation of efs_nftw().
+int efs_nftw_callback(const char *fpath, const struct efs_stat *sb) {
+	// extern: efs, outfile
+	int rc;
+
+	if (Wflag) {
+		pdprint(efs, fpath);
+		return 0;
+	}
+	if (!qflag) {
+		printf("%s\n", fpath);
+	}
+	if (!lflag) {
+		if (outfile) {
+			rc = tar_emit(efs, fpath);
+			if (rc == -1)
+				errx(1, "while writing to tar (emit failure): %d", rc);
+		} else {
+			emit_file(efs, fpath);
+		}
+	}
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	char *filename = NULL;
-	char *outfile = NULL;
 	int rc;
 	int parnum = -1;
 
@@ -393,7 +420,6 @@ int main(int argc, char *argv[])
 	efs_err_t erc;
 	dvh_t *dvh;
 	fileslice_t *par;
-	efs_t *efs;
 
 	erc = dvh_open(&dvh, filename);
 	if ((erc != EFS_ERR_OK) && !outfile) {
@@ -517,31 +543,10 @@ int main(int argc, char *argv[])
 		if (rc) err(1, "couldn't create archive '%s'", outfile);
 	}
 
-	int fn(const char *fpath, const struct efs_stat *sb) {
-		if (Wflag) {
-			pdprint(efs, fpath);
-			return 0;
-		}
-		if (!qflag) {
-			printf("%s\n", fpath);
-		}
-		if (!lflag) {
-			if (outfile) {
-				rc = tar_emit(efs, fpath);
-				if (rc == -1)
-					errx(1, "while writing to tar (emit failure): %d", rc);
-			} else {
-				emit_file(efs, fpath);
-			}
-		}
-
-		return 0;
-	}
-
         if (Wflag) {
                 printf("   %-30s  %s\n\n", "Name", "Description");
         }
-	efs_nftw(efs, "", fn);
+	efs_nftw(efs, "", efs_nftw_callback);
 
 	if (outfile) {
 		rc = tar_close();
