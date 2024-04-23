@@ -5,10 +5,12 @@ libs:=libiso9660
 
 #EXTRAS = -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -Wall
 
-ifdef libs
-LDLIBS += $(shell pkg-config --libs   ${libs})
-CFLAGS += $(shell pkg-config --cflags ${libs})
-endif
+#ifdef libs
+#LDLIBS += $(shell pkg-config --libs   ${libs})
+#CFLAGS += $(shell pkg-config --cflags ${libs})
+#endif
+
+LDLIBS += -liso9660 -lcdio -lm
 
 LDFLAGS += ${EXTRAS}
 CFLAGS  = -std=gnu99 -Wall -ggdb ${EXTRAS}

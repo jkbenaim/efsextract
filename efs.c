@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "efs.h"
 #include "endian.h"
 #include "err.h"
