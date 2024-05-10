@@ -1,0 +1,2 @@
+f 0755 root sys usr/bin/efsextract scratch/efsextract/efsextract efsextract.sw.base nostrip norqs
+f 0644 root sys usr/man/u_man/man1/efsextract.1 scratch/efsextract/efsextract.1 efsextract.man.manpages
