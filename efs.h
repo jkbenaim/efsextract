@@ -65,6 +65,7 @@
 /* number of inodes per bb */
 #define	BBSHIFT	9
 #define BBSIZE (1<<BBSHIFT)
+#undef BBMASK
 #define	BBMASK	(BBSIZE - 1)
 #define	EFS_INOPBB	(1 << EFS_INOPBBSHIFT)
 #define	EFS_INOPBBSHIFT	(BBSHIFT - EFS_EFSINOSHIFT)

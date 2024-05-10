@@ -13,7 +13,7 @@
 #include <cdio/iso9660.h>
 #include <cdio/logging.h>
 
-#if defined(__linux)
+#ifndef __MINGW32__
 #include <sys/sysmacros.h>
 #endif
 

@@ -115,6 +115,8 @@
 
 #	define be32toh(x) ntohl(x)
 #	define be16toh(x) ntohs(x)
+#	define htobe32(x) ntohl(x)
+#	define htobe16(x) ntohs(x)
 
 #else
 

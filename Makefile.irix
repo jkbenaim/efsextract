@@ -1,0 +1,48 @@
+LIBCDIO_VERSION = 2.1.0
+LIBCDIO_NAME = libcdio-$(LIBCDIO_VERSION)
+
+target  ?= efsextract
+objects := asprintf.o efsextract.o efs.o hexdump.o pdscan.o progname.o tar.o
+
+#EXTRAS += -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -fanalyzer -Wall
+
+LDFLAGS += -static ${EXTRAS}
+CFLAGS  += -flto -std=gnu2x -Og -ggdb -Ilibcdio-install/include ${EXTRAS}
+
+.PHONY: all
+all:	$(target) README
+
+.PHONY: clean
+clean:
+	rm -f $(target) $(objects)
+
+.PHONY: distclean
+distclean: clean
+	rm -Rf libcdio-build libcdio-install $(LIBCDIO_NAME)
+
+README: ${target}.1
+	MANWIDTH=77 man --nh --nj ./${target}.1 | col -b > $@
+
+$(target): $(objects) libcdio-install/lib/libiso9660.a libcdio-install/lib/libudf.a libcdio-install/lib/libcdio.a
+
+########################
+########################
+# libcdio stuff
+########################
+########################
+
+
+$(objects): libcdio-install/lib/libcdio.a libcdio-install/lib/libiso9660.a libcdio-install/lib/libudf.a
+
+
+libcdio-install/lib/libcdio.a libcdio-install/lib/libiso9660.a: libcdio-build/Makefile
+	$(MAKE) -C libcdio-build install MAKEFLAGS=
+
+libcdio-build/Makefile: $(LIBCDIO_NAME)/configure
+	mkdir -p libcdio-build
+	cd libcdio-build && ../$(LIBCDIO_NAME)/configure --disable-shared --enable-static --without-cd-drive --without-cd-info --without-cdda-player --without-cd-read --without-iso-info --without-iso-read --disable-cxx --disable-joliet --disable-rock --disable-cddb --disable-vcd-info --disable-example-progs --disable-cpp-progs --prefix="`realpath ../libcdio-install`"
+
+$(LIBCDIO_NAME)/configure: libraries/$(LIBCDIO_NAME).tar.gz
+	gzip -dc $< | tar -xvf -
+	touch $@
+

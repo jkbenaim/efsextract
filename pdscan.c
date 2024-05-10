@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "asprintf.h"
 #include "efs.h"
 #include "endian.h"
 #include "err.h"
