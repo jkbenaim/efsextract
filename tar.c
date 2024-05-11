@@ -59,6 +59,18 @@ out_error:
 
 int tar_close(void)
 {
+	// Pad up to a multiple of 4096 bytes.
+	long pos;
+	uint8_t buf[4096];
+
+	pos = ftell(f);
+	if (pos & (long)(4096 - 1)) {
+		size_t nbytes;
+		nbytes = 4096 - (pos & (long)(4096 - 1));
+		memset(buf, 0, sizeof(buf));
+		fwrite(buf, nbytes, 1, f);
+	}
+
 	fclose(f);
 	return 0;
 }
@@ -71,6 +83,7 @@ int tar_emit(efs_t *efs, const char *filename)
 	struct tarblk_s blk = {0,};
 	struct efs_stat sb = {0,};
 	int retval;
+	size_t filename_len;
 
 	if (!filename) {
 		retval = -3;
@@ -84,11 +97,17 @@ int tar_emit(efs_t *efs, const char *filename)
 		goto out_error;
 	}
 
-	if (strlen(filename) > (sizeof(blk.name) + sizeof(blk.nameprefix))) {
+	filename_len = strlen(filename);
+	if ((sb.st_mode & IFMT) == IFDIR) {
+		// For directories, we append a '/' to the filename.
+		filename_len++;
+	}
+
+	if (filename_len > (sizeof(blk.name) + sizeof(blk.nameprefix))) {
 		/* file name too long for tar format */
 		retval = -1;
 		goto out_error;
-	} else if (strlen(filename) > sizeof(blk.name)) {
+	} else if (filename_len > sizeof(blk.name)) {
 		/* long file name */
 		char *split = strrchr(filename, '/');
 		if (!split)
@@ -100,11 +119,28 @@ int tar_emit(efs_t *efs, const char *filename)
 		strncpy(blk.name, filename, sizeof(blk.name));
 	}
 
-	rc = snprintf(blk.mode, sizeof(blk.mode), "%07o", sb.st_mode & 0777);
-	rc = snprintf(blk.uid, sizeof(blk.uid), "%07o", sb.st_uid);
-	rc = snprintf(blk.gid, sizeof(blk.gid), "%07o", sb.st_gid);
-	rc = snprintf(blk.size, sizeof(blk.size), "%011o", sb.st_size);
+	// if we are writing a directory, then append a '/' to the end
+	// of the filename.
+	if ((sb.st_mode & IFMT) == IFDIR) {
+		rc = strlen(blk.name);
+		blk.name[rc] = '/';
+		blk.name[rc + 1] = '\0';
+	}
+
+	rc = snprintf(blk.mode, sizeof(blk.mode), "%06o ", sb.st_mode & 0777);
+	rc = snprintf(blk.uid, sizeof(blk.uid), "%06o ", sb.st_uid);
+	rc = snprintf(blk.gid, sizeof(blk.gid), "%06o ", sb.st_gid);
+	if ((sb.st_mode & IFMT) == IFDIR) {
+		rc = snprintf(blk.size, sizeof(blk.size), "%011o", 0);
+	} else {
+		rc = snprintf(blk.size, sizeof(blk.size), "%011o", sb.st_size);
+	}
 	rc = snprintf(blk.mtime, sizeof(blk.mtime), "%011o", (unsigned int)sb.st_mtimespec.tv_sec);
+
+	// actually, we want certain values to be space-terminated,
+	// not null-terminated...
+	blk.size[sizeof(blk.size) - 1] = ' ';
+	blk.mtime[sizeof(blk.mtime) - 1] = ' ';
 
 	memset(blk.sum, ' ', sizeof(blk.sum));	// we'll fix the checksum later
 
@@ -124,19 +160,27 @@ int tar_emit(efs_t *efs, const char *filename)
 
 	blk.ver[0] = blk.ver[1] = '0';
 
+#if 0
+	strncpy(blk.username, "root", sizeof(blk.username));
+	strncpy(blk.groupname, "sys", sizeof(blk.groupname));
+#else
 	blk.username[0] = '\0';
 	blk.groupname[0] = '\0';
+#endif
 
 	if (((sb.st_mode & IFMT) == IFCHR)
 	  || ((sb.st_mode & IFMT) == IFBLK)) {
-		rc = snprintf(blk.devmajor, sizeof(blk.devmajor), "%07o", sb.st_major);
-		rc = snprintf(blk.devminor, sizeof(blk.devminor), "%07o", sb.st_minor);
+		rc = snprintf(blk.devmajor, sizeof(blk.devmajor), "%06o ", sb.st_major);
+		rc = snprintf(blk.devminor, sizeof(blk.devminor), "%06o ", sb.st_minor);
+	} else {
+		memcpy(blk.devmajor, "000000 ", 8);
+		memcpy(blk.devminor, "000000 ", 8);
 	}
 
 	// calculate checksum
 	uint32_t sum = 0;
 	sum = tar_getsum(blk);
-	rc = snprintf(blk.sum, sizeof(blk.sum), "%07o", sum);
+	rc = snprintf(blk.sum, sizeof(blk.sum), "%06o", sum);
 
 	sz = fwrite(&blk, sizeof(blk), 1, f);
 	if (sz != 1)
