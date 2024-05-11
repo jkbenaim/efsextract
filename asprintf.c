@@ -6,7 +6,7 @@
 #include "asprintf.h"
 #include "err.h"
 
-#ifndef vasprintf
+#if defined(__sgi)
 int vasprintf(char **strp, const char *fmt, va_list ap)
 {
 	__label__ out_error;
@@ -47,9 +47,7 @@ out_error:
 	*strp = NULL;
 	return -1;
 }
-#endif
 
-#ifndef asprintf
 int asprintf(char **strp, const char *fmt, ...)
 {
 	int rc;
