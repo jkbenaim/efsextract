@@ -1,8 +1,8 @@
 product efsextract
-    id "EFS Extract, 0.5"
+    id "EFS Extract, 0.6"
     image sw
         id "Software"
-        version 50
+        version 60
         order 9999
         subsys base default
             id "Software"
@@ -12,7 +12,7 @@ product efsextract
     endimage
     image man
         id "Man Page"
-        version 50
+        version 60
         order 9999
         subsys manpages default
             id "Man Page"
