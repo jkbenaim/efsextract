@@ -123,7 +123,7 @@ void emit_regfile(efs_t *efs, const char *path)
 	if (!src)
 		errx(1, "couldn't open efs file '%s'", path);
 
-	dst = fopen(path, "w");
+	dst = fopen(path, "wb");
 	if (!dst)
 		err(1, "couldn't open destination file '%s'", path);
 
@@ -517,7 +517,7 @@ int main(int argc, char *argv[])
 
 				filedata = dvh_readFile(dvh, fileNum);
 				if (filedata)
-					f = fopen(filename, "w");
+					f = fopen(filename, "wb");
 
 				if (f) {
 					size_t sRc;

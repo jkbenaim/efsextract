@@ -1,7 +1,7 @@
 #pragma once
 #define PROG_NAME "efsextract"
 #define PROG_URL "https://jrra.zone/efsextract"
-#define PROG_VERSION_STRING "0.6"
+#define PROG_VERSION_STRING "0.6a"
 #define PROG_VERSION_MAJOR (0)
 #define PROG_VERSION_MINOR (6)
 #define PROG_VERSION (PROG_NAME "_" PROG_VERSION_STRING)

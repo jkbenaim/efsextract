@@ -45,7 +45,7 @@ int tar_create(const char *path)
 {
 	__label__ out_error;
 
-	f = fopen(path, "w");
+	f = fopen(path, "wb");
 	if (!f)
 		goto out_error;
 
