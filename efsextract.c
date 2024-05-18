@@ -169,7 +169,7 @@ void emit_file(efs_t *efs, const char *path)
 #else
 		rc = mkdir(path, sb.st_mode & 0777);
 #endif
-		if (rc == -1)
+		if ((rc == -1) && (errno != EEXIST))
 			err(1, "couldn't make directory '%s'", path);
 		break;
 	case IFREG:
