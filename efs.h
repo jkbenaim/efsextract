@@ -20,7 +20,7 @@
 #define EFS_MAXLBSIZE
 
 #define EFS_DIRECTEXTENTS 12
-//#define EFS_MAXINDIRBBS 64
+/* #define EFS_MAXINDIRBBS 64 */
 #define EFS_MAXINDIRBBS 128
 #define EFS_MAXEXTENTS 32767
 #define EFS_INODESPERPAGE (NBPC / sizeof(struct efs_dinode))
@@ -140,7 +140,7 @@ enum partition_type_e {
 	PT_SYSV = 5,
 	PT_VOLUME = 6,
 	PT_EFS = 7,
-	PT_XFS = 10,
+	PT_XFS = 10
 };
 
 struct dvh_dp_s {
@@ -232,10 +232,12 @@ struct efs_extent {
 		 ex_bn:24,
 		 ex_length:8,
 		 ex_offset:24;
-	// uint8_t ex_magic;
-	// uint8_t ex_bn[3];
-	// uint8_t ex_length;
-	// uint8_t ex_offset[3];
+/*
+	uint8_t ex_magic;
+	uint8_t ex_bn[3];
+	uint8_t ex_length;
+	uint8_t ex_offset[3];
+*/
 } __attribute__((packed));
 
 struct efs_edevs {
@@ -265,7 +267,7 @@ struct efs_dinode {
 struct efs_dent {
 	uint32_t l;
 	uint8_t d_namelen;
-	char d_name[];
+	char d_name[0];
 } __attribute__((packed));
 
 struct efs_dirblk {
@@ -281,7 +283,7 @@ struct efs_dinode efs_dinodetoh(struct efs_dinode inode);
 enum efs_fstype {
 	EFS_FSTYPE_NONE = 0,
 	EFS_FSTYPE_EFS,
-	EFS_FSTYPE_VH,
+	EFS_FSTYPE_VH
 };
 
 typedef struct efs_ctx {
@@ -324,7 +326,7 @@ typedef struct efs_file {
 	bool eof;
 	bool error;
 	uint8_t blockbuf[BLKSIZ];
-	int blocknum;	// set to -1 if blockbuf is not filled
+	int blocknum;	/* set to -1 if blockbuf is not filled */
 } efs_file_t;
 
 struct efs_stat {
@@ -355,7 +357,7 @@ typedef enum {
 	EFS_ERR_BADPAR,
 	EFS_ERR_IS_BSD,
 	EFS_ERR_IS_ISO9660,
-	EFS_ERR_IS_XFS,
+	EFS_ERR_IS_XFS
 } efs_err_t;
 
 struct qent_s {

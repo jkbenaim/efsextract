@@ -3,7 +3,7 @@ objects := asprintf.o efsextract.o efs.o hexdump.o pdscan.o progname.o tar.o
 
 libs:=libiso9660
 
-#EXTRAS = -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -Wall
+EXTRAS = -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -Wall -Wc90-c99-compat
 
 #ifdef libs
 #LDLIBS += $(shell pkg-config --libs   ${libs})

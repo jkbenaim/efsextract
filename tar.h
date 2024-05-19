@@ -11,14 +11,14 @@ struct tarblk_s {
         char sum[8];
         char type;
         char lnk[100];
-        char magic[6];  // ustar\0
-        char ver[2];    // "00"
+        char magic[6];  /* ustar\0 */
+        char ver[2];    /* "00" */
         char username[32];
         char groupname[32];
         char devmajor[8];
         char devminor[8];
         char nameprefix[155];
-	char __pad[12];	// 512 bytes total
+	char __pad[12];	/* 512 bytes total */
 } __attribute__((packed));
 
 enum tar_type_e {
@@ -28,7 +28,7 @@ enum tar_type_e {
         TAR_TYPE_CHAR = 3,
         TAR_TYPE_BLOCK = 4,
         TAR_TYPE_DIR = 5,
-        TAR_TYPE_FIFO = 6,
+        TAR_TYPE_FIFO = 6
 };
 
 extern int tar_create(const char *path);

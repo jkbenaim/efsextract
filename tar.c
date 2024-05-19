@@ -34,8 +34,9 @@ uint32_t tar_getsum(struct tarblk_s blk)
 {
 	uint32_t sum = 0;
 	uint8_t buf[512];
+	int i;
 	memcpy(buf, &blk, sizeof(buf));
-	for (int i = 0; i < sizeof(buf); i++) {
+	for (i = 0; i < sizeof(buf); i++) {
 		sum += buf[i];
 	}
 	return sum;
@@ -59,7 +60,7 @@ out_error:
 
 int tar_close(void)
 {
-	// Pad up to a multiple of 4096 bytes.
+	/* Pad up to a multiple of 4096 bytes. */
 	long pos;
 	uint8_t buf[4096];
 
@@ -84,6 +85,7 @@ int tar_emit(efs_t *efs, const char *filename)
 	struct efs_stat sb = {0,};
 	int retval;
 	size_t filename_len;
+	uint32_t sum;
 
 	if (!filename) {
 		retval = -3;
@@ -99,7 +101,7 @@ int tar_emit(efs_t *efs, const char *filename)
 
 	filename_len = strlen(filename);
 	if ((sb.st_mode & IFMT) == IFDIR) {
-		// For directories, we append a '/' to the filename.
+		/* For directories, we append a '/' to the filename. */
 		filename_len++;
 	}
 
@@ -119,8 +121,10 @@ int tar_emit(efs_t *efs, const char *filename)
 		strncpy(blk.name, filename, sizeof(blk.name));
 	}
 
-	// if we are writing a directory, then append a '/' to the end
-	// of the filename.
+	/*
+	 * if we are writing a directory, then append a '/' to the end
+	 * of the filename.
+	 */
 	if ((sb.st_mode & IFMT) == IFDIR) {
 		rc = strlen(blk.name);
 		blk.name[rc] = '/';
@@ -137,12 +141,14 @@ int tar_emit(efs_t *efs, const char *filename)
 	}
 	rc = snprintf(blk.mtime, sizeof(blk.mtime), "%011o", (unsigned int)sb.st_mtimespec.tv_sec);
 
-	// actually, we want certain values to be space-terminated,
-	// not null-terminated...
+	/*
+	 * actually, we want certain values to be space-terminated,
+	 * not null-terminated...
+	 */
 	blk.size[sizeof(blk.size) - 1] = ' ';
 	blk.mtime[sizeof(blk.mtime) - 1] = ' ';
 
-	memset(blk.sum, ' ', sizeof(blk.sum));	// we'll fix the checksum later
+	memset(blk.sum, ' ', sizeof(blk.sum));	/* we'll fix the checksum later */
 
 	blk.type = tar_mode_lookup(sb.st_mode);
 
@@ -152,7 +158,7 @@ int tar_emit(efs_t *efs, const char *filename)
 		if (!src) err(1, "couldn't open efs file '%s' as link", filename);
 		efs_fread(blk.lnk, sb.st_size, 1, src);
 		efs_fclose(src);
-		// also, set size to zero
+		/* also, set size to zero */
 		rc = snprintf(blk.size, sizeof(blk.size), "%011o", 0);
 	}
 
@@ -177,8 +183,8 @@ int tar_emit(efs_t *efs, const char *filename)
 		memcpy(blk.devminor, "000000 ", 8);
 	}
 
-	// calculate checksum
-	uint32_t sum = 0;
+	/* calculate checksum */
+	sum = 0;
 	sum = tar_getsum(blk);
 	rc = snprintf(blk.sum, sizeof(blk.sum), "%06o", sum);
 
@@ -190,7 +196,10 @@ int tar_emit(efs_t *efs, const char *filename)
 		size_t tailBytes;
 		efs_file_t *src;
 		const size_t bufsiz = 512;
-		uint8_t *buf = calloc(bufsiz, 1);
+		size_t blockNum;
+		uint8_t *buf;
+
+		buf = calloc(bufsiz, 1);
 		if (!buf) err(1, "calloc");
 		tailBytes = (size_t)(sb.st_size) % bufsiz;
 #if 0
@@ -198,7 +207,7 @@ int tar_emit(efs_t *efs, const char *filename)
 #endif
 		src = efs_fopen(efs, filename);
 		if (!src) errx(1, "couldn't open efs file '%s' as regular file", filename);
-		for (size_t blockNum = 0; blockNum < (sb.st_size / bufsiz); blockNum++) {
+		for (blockNum = 0; blockNum < (sb.st_size / bufsiz); blockNum++) {
 			sz = efs_fread(buf, bufsiz, 1, src);
 			if (sz != 1)
 				errx(1, "couldn't read from source file '%s'", filename);
@@ -241,6 +250,7 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	struct tarblk_s blk = {0,};
 	iso9660_stat_t *st = NULL;
 	int retval;
+	uint32_t sum;
 
 	if (!filename) {
 		retval = -3;
@@ -281,7 +291,7 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	rc = snprintf(blk.mtime, sizeof(blk.mtime), "%011lo", mktime(&st->tm));
 	if (rc < 0) errx(1, "in snprintf");
 
-	memset(blk.sum, ' ', sizeof(blk.sum));	// we'll fix the checksum later
+	memset(blk.sum, ' ', sizeof(blk.sum));	/* we'll fix the checksum later */
 
 	switch (st->type) {
 	case _STAT_FILE:
@@ -302,8 +312,8 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	blk.username[0] = '\0';
 	blk.groupname[0] = '\0';
 
-	// calculate checksum
-	uint32_t sum = 0;
+	/* calculate checksum */
+	sum = 0;
 	sum = tar_getsum(blk);
 	rc = snprintf(blk.sum, sizeof(blk.sum), "%07o", sum);
 	if (rc < 0) errx(1, "in snprintf");
@@ -315,9 +325,12 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	if ((st->type == _STAT_FILE) && st->size) {
 		size_t bufsiz = st->size + ISO_BLOCKSIZE;
 		uint8_t *buf = calloc(bufsiz, 1);
-		if (!buf) err(1, "calloc");
 		long int z;
-		size_t numblks = (st->size + ISO_BLOCKSIZE - 1) / ISO_BLOCKSIZE;
+		size_t numblks;
+
+		if (!buf) err(1, "calloc");
+
+		numblks = (st->size + ISO_BLOCKSIZE - 1) / ISO_BLOCKSIZE;
 		z = iso9660_iso_seek_read(ctx, buf, st->lsn, numblks);
 		if (!z) err(1, "couldn't read file from image: '%s'", filename);
 

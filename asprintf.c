@@ -14,13 +14,15 @@ int vasprintf(char **strp, const char *fmt, va_list ap)
 	size_t size = 0;
 	size_t bufsize = 0;
 
-	// IRIX's libc has a broken implementation of vsnprintf.
-	// The return value is supposed to be the number of characters
-	// that would actually have been written if the buffer was
-	// big enough. IRIX's version instead returns the number
-	// of characters actually written. This means we can't rely
-	// on vsnprintf to tell us how long a formatted string will
-	// be, and we simply have to choose a buffer large enough.
+	/*
+	 * IRIX's libc has a broken implementation of vsnprintf.
+	 * The return value is supposed to be the number of characters
+	 * that would actually have been written if the buffer was
+	 * big enough. IRIX's version instead returns the number
+	 * of characters actually written. This means we can't rely
+	 * on vsnprintf to tell us how long a formatted string will
+	 * be, and we simply have to choose a buffer large enough.
+	 */
 #if defined(__sgi)
 	bufsize = 1024;
 #endif

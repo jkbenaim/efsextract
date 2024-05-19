@@ -114,6 +114,7 @@ void emit_regfile(efs_t *efs, const char *path)
 	char blk[BLKSIZ];
 	size_t sz;
 	size_t bytesLeft;
+	size_t blockNum;
 
 	rc = efs_stat(efs, path, &sb);
 	if (rc == -1)
@@ -127,7 +128,7 @@ void emit_regfile(efs_t *efs, const char *path)
 	if (!dst)
 		err(1, "couldn't open destination file '%s'", path);
 
-	for (size_t blockNum = 0; blockNum < (sb.st_size / 512); blockNum++) {
+	for (blockNum = 0; blockNum < (sb.st_size / 512); blockNum++) {
 		sz = efs_fread(blk, BLKSIZ, 1, src);
 		if (sz != 1)
 			err(1, "couldn't read from source file '%s'", path);
@@ -244,10 +245,12 @@ done:
 	}
 }
 
-// This function is used as a callback for a later
-// invocation of efs_nftw().
+/*
+ * This function is used as a callback for a later
+ * invocation of efs_nftw().
+ */
 int efs_nftw_callback(const char *fpath, const struct efs_stat *sb) {
-	// extern: efs, outfile
+	/* extern: efs, outfile */
 	int rc;
 
 	if (Wflag) {
@@ -275,6 +278,9 @@ int main(int argc, char *argv[])
 	char *filename = NULL;
 	int rc;
 	int parnum = -1;
+	efs_err_t erc;
+	dvh_t *dvh;
+	fileslice_t *par;
 
 	progname_init(argc, argv);
 
@@ -347,19 +353,18 @@ int main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	// -L flag: cannot be combined with other flags
+	/* -L flag: cannot be combined with other flags */
 	if (Lflag && (lflag || qflag || Wflag))
 		errx(1, "cannot combine -L flag with other flags");
 	
-	// -X flag: can be combined with -q flag, but nothing else
+	/* -X flag: can be combined with -q flag, but nothing else */
 	if (Xflag && (lflag || Lflag || Wflag))
 		errx(1, "cannot combine -X flag with other flags");
 	if (Xflag && outfile)
 		errx(1, "cannot combine -X flag with -o");
 	
-	// grab filename as first un-flagged argument
+	/* grab filename as first un-flagged argument */
 	if (*argv != NULL) {
-		// printf("got filename\n");
 		filename = *argv;
 	} else {
 		warnx("must specify a file");
@@ -372,12 +377,13 @@ int main(int argc, char *argv[])
 	if (Lflag) {
 		efs_err_t erc;
 		dvh_t *ctx = NULL;
+		unsigned i;
 		erc = dvh_open(&ctx, filename);
 		if (erc != EFS_ERR_OK)
 			errefs(1, erc, "couldn't open dvh in '%s'", filename);
 		printf("idx  start     size      type\n");
 		printf("---  --------  --------  --------\n");
-		for (unsigned i = 0; i < NPARTAB; i++) {
+		for (i = 0; i < NPARTAB; i++) {
 			struct dvh_pt_s pt;
 			const char *typeName;
 			pt = dvh_getParInfo(ctx, i);
@@ -394,13 +400,15 @@ int main(int argc, char *argv[])
 					printf("(%d)\n", pt.pt_type);
 				}
 			} else {
-				//printf("%3u         -         -\n", i);
+#if 0
+				printf("%3u         -         -\n", i);
+#endif
 			}
 		}
 		printf("\n");
 		printf("start     size      name\n");
 		printf("--------  --------  --------\n");
-		for (unsigned i = 0; i < NVDIR; i++) {
+		for (i = 0; i < NVDIR; i++) {
 			struct dvh_vd_s vd;
 			char name[VDNAMESIZE + 1];
 			name[VDNAMESIZE] = '\0';
@@ -417,18 +425,17 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	efs_err_t erc;
-	dvh_t *dvh;
-	fileslice_t *par;
-
 	erc = dvh_open(&dvh, filename);
 	if ((erc != EFS_ERR_OK) && !outfile) {
 		errx(1, "couldn't find volume header in '%s'", filename);
 	} else if (erc != EFS_ERR_OK) {
 		/* is it iso9660? */
+		CdioList_t *a;
+		CdioListNode_t *b;
 		iso9660_t *ctx;
 		queue_t q, dirq;
 		int rc;
+		struct qent_s *qe;
 
 		cdio_loglevel_default = CDIO_LOG_ERROR;
 
@@ -444,20 +451,15 @@ int main(int argc, char *argv[])
 		if (!ctx)
 			errx(1, "couldn't open '%s'", filename);
 
-		CdioList_t *a;
-		CdioListNode_t *b;
-		struct qent_s *qe;
 		while ((qe = queue_dequeue(q))) {
 			a = iso9660_ifs_readdir(ctx, qe->path);
 			dirq = queue_init();
 			if (a) {
 				_CDIO_LIST_FOREACH(b, a) {
-					//char filename[4096];
 					iso9660_stat_t *st;
 					char *path;
 
 					st = (iso9660_stat_t *) _cdio_list_node_data(b);
-					//iso9660_name_translate(st->filename, filename);
 					path = mkpath(qe->path, st->filename);
 					if (strcmp(st->filename, ".") && strcmp(st->filename, "..")) {
 						if (!qflag && path) {
@@ -492,7 +494,7 @@ int main(int argc, char *argv[])
 		tar_close();
 		ctx = NULL;
 		return 0;
-	} // end iso9660 branch
+	} /* end iso9660 branch */
 
 
 	par = dvh_getParSlice(dvh, parnum);
@@ -503,9 +505,10 @@ int main(int argc, char *argv[])
 		errefs(1, erc, "couldn't open efs in '%s'", filename);
 
 	if (Xflag) {
+		int fileNum;
 		struct dvh_vd_s vd;
 
-		for (int fileNum = 0; fileNum < NVDIR; fileNum++) {
+		for (fileNum = 0; fileNum < NVDIR; fileNum++) {
 			vd = dvh_getFileInfo(dvh, fileNum);
 			if (vd.vd_lbn != 0) {
 				void *filedata;

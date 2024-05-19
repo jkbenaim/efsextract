@@ -76,7 +76,9 @@ struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
 	out.di_version = inode.di_version;
 	out.di_spare = inode.di_spare;
 
-	//printf("numextents: %u\n", out.di_numextents);
+#if 0
+	printf("numextents: %u\n", out.di_numextents);
+#endif
 
 	switch (out.di_mode & IFMT) {
 	case IFCHR:
@@ -115,7 +117,7 @@ efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 	rc = fsread(buf, BLKSIZ, nblks, ctx->fs);
 #if 0
 	printf("fsread: returning %d\n", rc);
-	//hexdump(buf, BLKSIZ * nblks);
+	hexdump(buf, BLKSIZ * nblks);
 #endif
 	if (rc != nblks) {
 		erc = EFS_ERR_READFAIL;
@@ -206,7 +208,9 @@ struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino)
 	info = efs_get_inode_info(ctx, ino);
 	efs_get_blocks(ctx, &inodes, info.bb, 1);
 	inodes[info.slot] = efs_dinodetoh(inodes[info.slot]);
-	//hexdump(&inodes[off], sizeof(*inodes));
+#if 0
+	hexdump(&inodes[off], sizeof(*inodes));
+#endif
 	return inodes[info.slot];
 }
 
@@ -233,12 +237,16 @@ efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 {
 	__label__ out_ok, out_error;
 	efs_dir_t *dirp;
+	size_t nel = 0;
+	struct efs_dirent *de;
 
 	dirp = calloc(sizeof(*dirp), 1);
 	if (!dirp) goto out_error;
 
 	dirp->ino = efs_namei(efs, dirname);
-	// printf("--ino: %u\n", dirp->ino);
+#if 0
+	printf("--ino: %u\n", dirp->ino);
+#endif
 	if (dirp->ino == -1) goto out_error;
 
 	dirp->dirent = _efs_read_dirblks(efs, dirp->ino);
@@ -246,8 +254,7 @@ efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 		goto out_error;
 	dirp->_dirent_memobj = dirp->dirent;
 
-	size_t nel = 0;
-	for (typeof(dirp->dirent) de = dirp->dirent; de->d_ino; de++) {
+	for (de = dirp->dirent; de->d_ino; de++) {
 		nel++;
 	}
 
@@ -400,7 +407,7 @@ int efs_nftw(
 			if (fn) {
 				rc = fn(path, &sb);
 				if (rc != 0) {
-					// TODO: stop walk
+					/* TODO: stop walk */
 				}
 			} else {
 				printf("%s\n", path);
@@ -501,8 +508,14 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 	__label__ out_error, out_ok;
 	efs_err_t erc;
 	struct efs_extent *out = NULL;
-	unsigned numextents = dinode->di_numextents;
-	//printf("numextents:  %4x\n", numextents);
+	unsigned numextents;
+	unsigned last;
+	size_t i;
+
+	numextents = dinode->di_numextents;
+#if 0
+	printf("numextents:  %4x\n", numextents);
+#endif
 
 	out = calloc(numextents, sizeof(struct efs_extent));
 	if (!out)
@@ -513,7 +526,8 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 
 	if (numextents <= EFS_DIRECTEXTENTS) {
 		/* direct extents */
-		for (unsigned i = 0; i < numextents; i++) {
+		unsigned i;
+		for (i = 0; i < numextents; i++) {
 			out[i] = dinode->di_u.di_extents[i];
 		}
 	} else {
@@ -521,15 +535,19 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 		void *buf = NULL;
 		unsigned numindirect;
 		unsigned nobbs;
+		unsigned bbcursor = 0;
+		unsigned i;
 		numindirect = efs_extent_get_offset(dinode->di_u.di_extents[0]);
-		//printf("numindirect: %4x\n", numindirect);
+#if 0
+		printf("numindirect: %4x\n", numindirect);
+#endif
 
 		if (numindirect > EFS_DIRECTEXTENTS)
 			errx(1, "invalid number of indirect extents (fs corrupt)");
 
 		/* validate number of BBs is at or under limit */
 		nobbs = 0;
-		for (unsigned i = 0; i < numindirect; i++) {
+		for (i = 0; i < numindirect; i++) {
 			struct efs_extent ex;
 			ex = dinode->di_u.di_extents[i];
 			nobbs += ex.ex_length;
@@ -540,12 +558,13 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 		buf = calloc(nobbs, BLKSIZ);
 		if (!buf) err(1, "in calloc");
 
-		unsigned bbcursor = 0;
 
-		for (unsigned i = 0; i < numindirect; i++) {
+		for (i = 0; i < numindirect; i++) {
 			struct efs_extent ex;
 			ex = dinode->di_u.di_extents[i];
-			//printf("bbcursor:    %4x (%d)\n", bbcursor, i);
+#if 0
+			printf("bbcursor:    %4x (%d)\n", bbcursor, i);
+#endif
 			erc = efs_get_blocks(
 				ctx,
 				buf + (BLKSIZ * bbcursor),
@@ -554,10 +573,12 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 			);
 			if (erc != EFS_ERR_OK)
 				errefs(1, erc, "while fetching indir extent");
-			//hexdump(buf, BLKSIZ * nobbs);
+#if 0
+			hexdump(buf, BLKSIZ * nobbs);
+#endif
 			bbcursor += ex.ex_length;
 		}
-		for (unsigned i = 0; i < numextents; i++) {
+		for (i = 0; i < numextents; i++) {
 			struct efs_extent *exs;
 			exs = (struct efs_extent *)buf;
 			out[i] = exs[i];
@@ -598,8 +619,8 @@ struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 #endif
 #if 1
 	/* assert that extents are in ascending order */
-	unsigned last = efs_extent_get_offset(out[0]);
-	for (size_t i = 1; i < numextents; i++) {
+	last = efs_extent_get_offset(out[0]);
+	for (i = 1; i < numextents; i++) {
 		unsigned suspect;
 		suspect = efs_extent_get_offset(out[i]);
 		if (last >= suspect) {
@@ -622,7 +643,8 @@ out_error:
 
 struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos)
 {
-	for (unsigned i = 0; i < numextents; i++) {
+	unsigned i;
+	for (i = 0; i < numextents; i++) {
 		struct efs_extent *ex;
 		ex = &exs[i];
 		/* too low? */
@@ -643,6 +665,7 @@ unsigned _efs_nbytes_this_extent(
 ) {
 	__label__ out_error;
 	size_t start, end;
+	unsigned bytes_left_in_extent;
 	start = BLKSIZ * efs_extent_get_offset(*ex);
 	end = BLKSIZ * (efs_extent_get_offset(*ex) + ex->ex_length);
 
@@ -654,7 +677,6 @@ unsigned _efs_nbytes_this_extent(
 
 	/* move pos to be relative to start of extent */
 	pos -= start;
-	unsigned bytes_left_in_extent;
 	bytes_left_in_extent = end - start - pos;
 	return MIN(bytes_left_in_extent, nbytes);
 out_error:
@@ -665,7 +687,7 @@ unsigned _efs_nbytes_firstbn(
 	struct efs_extent *ex,
 	unsigned pos
 ) {
-	typeof(pos) blkOff, newpos;
+	unsigned blkOff, newpos;
 
 	newpos = pos - (BLKSIZ * efs_extent_get_offset(*ex));
 	blkOff = newpos / BLKSIZ;
@@ -680,6 +702,7 @@ size_t efs_fread_blocks(
 ) {
 	efs_err_t erc;
 	struct efs_extent *ex;
+	unsigned done;
 
 	if (!ptr) {
 		return 0;
@@ -697,7 +720,7 @@ size_t efs_fread_blocks(
 		memcpy(ptr, file->blockbuf, BLKSIZ);
 		return 1;
 	}
-	unsigned done = 0;
+	done = 0;
 	while (done < numblocks) {
 		unsigned offset_in_extent;
 		unsigned blocks_this_extent;
@@ -753,7 +776,6 @@ size_t _efs_fread_aux(
 	if (file->pos % BLKSIZ) {
 		unsigned start, len, blknum;
 		size_t rc;
-		//uint8_t buf[BLKSIZ];
 		uint8_t *buf = calloc(BLKSIZ, 1);
 
 		start = file->pos % BLKSIZ;
@@ -793,7 +815,6 @@ size_t _efs_fread_aux(
 	/* end with a partial block? */
 	if (!(file->pos % BLKSIZ) && size > 0 && size < BLKSIZ) {
 		size_t rc;
-		//uint8_t buf[BLKSIZ];
 		uint8_t *buf = calloc(BLKSIZ, 1);
 		unsigned blknum;
 
@@ -819,6 +840,7 @@ size_t efs_fread(
 	efs_file_t *file
 ) {
 	size_t out = 0;
+	int i;
 
 #if 0
 	if (size > 0xc080c1a2bf5e9032ULL)
@@ -830,7 +852,7 @@ size_t efs_fread(
 	);
 #endif
 
-	for (int i = 0; i < nmemb; i++) {
+	for (i = 0; i < nmemb; i++) {
 		size_t rc;
 		rc = _efs_fread_aux(ptr, size, file);
 		ptr += size;
@@ -1016,6 +1038,8 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	size_t sRc;
 	struct efs_dinode di;
 	struct efs_dirblk dirblk;
+	efs_file_t *file;
+	unsigned blk;
 
 	di = efs_get_inode(ctx, ino);
 	if ((di.di_mode & IFMT) != IFDIR)
@@ -1044,20 +1068,22 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 	}
 #endif
 
-	efs_file_t *file;
 	file = _efs_file_openi(ctx, ino);
 	if (!file)
 		errx(1, "in _efs_read_dirblks while opening directory");
-	for (unsigned blk = 0; blk < (file->nbytes / BLKSIZ); blk++) {
+	for (blk = 0; blk < (file->nbytes / BLKSIZ); blk++) {
+		unsigned slot;
 		memset(&dirblk, 0xba, sizeof(dirblk));
 		sRc = efs_fread(&dirblk, sizeof(dirblk), 1, file);
 		if (sRc != 1) errx(1, "while reading dirblk blk");
 		if (dirblk.magic != htobe16(EFS_DIRBLK_MAGIC)) {
 			warnx("skipping block %u", blk);
-			//hexdump(&dirblk, BLKSIZ);
+#if 0
+			hexdump(&dirblk, BLKSIZ);
+#endif
 			continue;
 		}
-		for (unsigned slot = 0; slot < dirblk.slots; slot++) {
+		for (slot = 0; slot < dirblk.slots; slot++) {
 			unsigned slotOffset;
 			struct efs_dent *dent;
 			if (dirblk.space[slot] >= dirblk.firstused) {
@@ -1067,7 +1093,9 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 				memcpy(&de.d_name, dent->d_name, dent->d_namelen);
 				de.d_name[dent->d_namelen] = '\0';
 				de.d_ino = be32toh(dent->l);
-				//printf("%8x  %s\n", de.d_ino, de.d_name);
+#if 0
+				printf("%8x  %s\n", de.d_ino, de.d_name);
+#endif
 
 				/* add dirent */
 				if (out_size == out_used) {
@@ -1147,6 +1175,8 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 	struct efs_dirent *dirents;
 	char firstpart[EFS_MAX_NAME + 1];
 	const char *remaining;
+	struct efs_dirent *de;
+	efs_ino_t myino;
 
 	/*
 	printf("_efs_nameiat: ctx %p, name '%s', ino %u\n",
@@ -1162,14 +1192,16 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 		free(dirents);
 		return -1;
 	}
-	// printf("firstpart: '%s'\n", firstpart);
-	// printf("remaining: '%s'\n", remaining);
+#if 0
+	printf("firstpart: '%s'\n", firstpart);
+	printf("remaining: '%s'\n", remaining);
+#endif
 
-	struct efs_dirent *de;
-	efs_ino_t myino;
 	for (de = dirents; (myino = de->d_ino); de++) {
 		if (!strcmp(de->d_name, firstpart)) {
-			// printf("found it at inode %x\n", de->d_ino);
+#if 0
+			printf("found it at inode %x\n", de->d_ino);
+#endif
 			if (!remaining) {
 				free(dirents);
 				return myino;
@@ -1432,6 +1464,9 @@ efs_err_t dvh_open(dvh_t **ctx, const char *filename)
 	int rc;
 	efs_err_t erc;
 	struct dvh_s dvh;
+	uint32_t sum = 0;
+	uint32_t words[128];
+	size_t i;
 
 	/* Allocate dvh context */
 	*ctx = calloc(1, sizeof(dvh_t));
@@ -1478,10 +1513,8 @@ efs_err_t dvh_open(dvh_t **ctx, const char *filename)
 	}
 
 	/* Validate volume header checksum */
-	uint32_t sum = 0;
-	uint32_t words[128];
 	memcpy(&words, &dvh, sizeof(words));
-	for (size_t i = 0; i < ARRAY_SIZE(words); i++) {
+	for (i = 0; i < ARRAY_SIZE(words); i++) {
 		sum += be32toh(words[i]);
 	}
 	if (sum != 0) {
@@ -1516,6 +1549,7 @@ efs_err_t dvh_close(dvh_t *ctx)
 
 void _dvh_ntoh(struct dvh_s *dvh)
 {
+	unsigned i;
 	dvh->vh_magic = be32toh(dvh->vh_magic);
 	dvh->vh_rootpt = be16toh(dvh->vh_rootpt);
 	dvh->vh_swappt = be16toh(dvh->vh_swappt);
@@ -1538,13 +1572,13 @@ void _dvh_ntoh(struct dvh_s *dvh)
 	dvh->vh_dp.dp_xwcont = be16toh(dvh->vh_dp.dp_xwcont);
 
 	/* vh_pd */
-	for (unsigned i = 0; i < NVDIR; i++) {
+	for (i = 0; i < NVDIR; i++) {
 		dvh->vh_pd[i].vd_lbn = be32toh(dvh->vh_pd[i].vd_lbn);
 		dvh->vh_pd[i].vd_nbytes = be32toh(dvh->vh_pd[i].vd_nbytes);
 	}
 
 	/* vh_pt */
-	for (unsigned i = 0; i < NPARTAB; i++) {
+	for (i = 0; i < NPARTAB; i++) {
 		dvh->vh_pt[i].pt_nblks = be32toh(dvh->vh_pt[i].pt_nblks);
 		dvh->vh_pt[i].pt_firstlbn = be32toh(dvh->vh_pt[i].pt_firstlbn);
 		dvh->vh_pt[i].pt_type = be32toh(dvh->vh_pt[i].pt_type);
@@ -1659,6 +1693,7 @@ efs_err_t efs_easy_open(efs_t **ctx, const char *filename)
 	int par_efs = -1;
 	bool par_xfs = false;
 	bool par_bsd = false;
+	int n;
 
 	/* Check arguments for validity. */
 	if (!ctx || !filename)
@@ -1671,7 +1706,7 @@ efs_err_t efs_easy_open(efs_t **ctx, const char *filename)
 	}
 
 	/* Detect partition types. */
-	for (int n = 0; n < NPARTAB; n++) {
+	for (n = 0; n < NPARTAB; n++) {
 		struct dvh_pt_s pt;
 		pt = dvh_getParInfo(dvh, n);
 		switch (pt.pt_type) {
