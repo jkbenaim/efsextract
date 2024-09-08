@@ -496,14 +496,6 @@ int main(int argc, char *argv[])
 		return 0;
 	} /* end iso9660 branch */
 
-
-	par = dvh_getParSlice(dvh, parnum);
-	if (!par)
-		errx(1, "couldn't get par slice %u", parnum);
-	erc = efs_open(&efs, par);
-	if (erc != EFS_ERR_OK)
-		errefs(1, erc, "couldn't open efs in '%s'", filename);
-
 	if (Xflag) {
 		int fileNum;
 		struct dvh_vd_s vd;
@@ -540,6 +532,13 @@ int main(int argc, char *argv[])
 		dvh_close(dvh);
 		return EXIT_SUCCESS;
 	}
+
+	par = dvh_getParSlice(dvh, parnum);
+	if (!par)
+		errx(1, "couldn't get par slice %u", parnum);
+	erc = efs_open(&efs, par);
+	if (erc != EFS_ERR_OK)
+		errefs(1, erc, "couldn't open efs in '%s'", filename);
 
 	if (outfile) {
 		rc = tar_create(outfile);
