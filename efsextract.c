@@ -31,6 +31,7 @@ int lflag = 0;
 int Lflag = 0;
 int Wflag = 0;
 int Xflag = 0;
+int force = 0;
 char *outfile = NULL;
 efs_t *efs;
 
@@ -125,6 +126,12 @@ void emit_regfile(efs_t *efs, const char *path)
 		errx(1, "couldn't open efs file '%s'", path);
 
 	dst = fopen(path, "wb");
+	if (!dst && errno == EACCES && force) {
+		rc = unlink(path);
+		if (rc == -1)
+			err(1, "couldn't remove file '%s'", path);
+		dst = fopen(path, "wb");
+	}
 	if (!dst)
 		err(1, "couldn't open destination file '%s'", path);
 
@@ -284,8 +291,15 @@ int main(int argc, char *argv[])
 
 	progname_init(argc, argv);
 
-	while ((rc = getopt(argc, argv, "hLlo:p:qVWX")) != -1)
+	while ((rc = getopt(argc, argv, "fhLlo:p:qVWX")) != -1)
 		switch (rc) {
+		case 'f':
+			if (force) {
+				warnx("multiple use of `-f'");
+				tryhelp();
+			}
+			force = 1;
+			break;
 		case 'h':
 			usage();
 			break;
@@ -574,6 +588,7 @@ static void usage(void)
 "Usage: %s [OPTION] [FILE]\n"
 "Extract files from the SGI CD image (or EFS file system) in FILE.\n"
 "\n"
+"  -f       delete destination files if they already exist\n"
 "  -h       print this help text\n"
 "  -l       list files without extracting\n"
 "  -L       list partitions and bootfiles from the volume header\n"
