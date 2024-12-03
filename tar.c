@@ -128,7 +128,10 @@ int tar_emit(efs_t *efs, const char *filename)
 	if ((sb.st_mode & IFMT) == IFDIR) {
 		rc = strlen(blk.name);
 		blk.name[rc] = '/';
-		blk.name[rc + 1] = '\0';
+
+		/* Null-terminate the name, unless we ran out of space. */
+		if (rc < (sizeof(blk.name) -1))
+			blk.name[rc + 1] = '\0';
 	}
 
 	rc = snprintf(blk.mode, sizeof(blk.mode), "%06o ", sb.st_mode & 0777);
