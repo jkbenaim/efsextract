@@ -446,7 +446,7 @@ const char *efs_strerror(efs_err_t e)
 		case EFS_ERR_BADVH:
 			return "volume header checksum failure";
 		case EFS_ERR_SBMAGIC:
-			return "superblock not found";
+			return "EFS superblock not found";
 		case EFS_ERR_PARTYPE:
 			return "unrecognized partition type";
 		case EFS_ERR_BADPAR:
