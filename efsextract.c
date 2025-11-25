@@ -135,7 +135,7 @@ void emit_regfile(efs_t *efs, const char *path)
 	if (!dst)
 		err(1, "couldn't open destination file '%s'", path);
 
-	for (blockNum = 0; blockNum < (sb.st_size / 512); blockNum++) {
+	for (blockNum = 0; blockNum < (sb.st_size / 512UL); blockNum++) {
 		sz = efs_fread(blk, BLKSIZ, 1, src);
 		if (sz != 1)
 			err(1, "couldn't read from source file '%s'", path);
@@ -261,7 +261,33 @@ int efs_nftw_callback(const char *fpath, const struct efs_stat *sb) {
 	int rc;
 
 	if (Wflag) {
-		pdprint(efs, fpath);
+		/* Only call pdprint if we find a .idb file.
+		 * We need to call it with the path of the pd file, though.
+		 * That means stripping off the .idb suffix.
+		 */
+		const char *cdot;
+		char *pdpath, *dot;
+
+		/* If it's not a file, skip it. */
+		if (IFREG != (sb->st_mode & IFMT))
+			return 0;
+		cdot = strrchr(fpath, '.');
+		/* If the path has no extension, skip this file. */
+		if (!cdot) return 0;
+		/* If the path doesn't end with ".idb", skip it */
+		if (0 != strcmp(cdot, ".idb"))
+			return 0;
+		pdpath = strdup(fpath);
+		if (pdpath == NULL)
+			err(1, "in strdup");
+		dot = strrchr(pdpath, '.');
+		if (!dot)
+			errx(1, "wtf");
+		*dot = '\0';
+
+		pdprint(efs, pdpath);
+		free(pdpath);
+		pdpath = NULL;
 		return 0;
 	}
 	if (!qflag) {

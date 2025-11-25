@@ -34,7 +34,7 @@ uint32_t tar_getsum(struct tarblk_s blk)
 {
 	uint32_t sum = 0;
 	uint8_t buf[512];
-	int i;
+	size_t i;
 	memcpy(buf, &blk, sizeof(buf));
 	for (i = 0; i < sizeof(buf); i++) {
 		sum += buf[i];
@@ -45,6 +45,11 @@ uint32_t tar_getsum(struct tarblk_s blk)
 int tar_create(const char *path)
 {
 	__label__ out_error;
+
+	if (!strcmp(path,"-")) {
+		f = stdout;
+		return 0;
+	}
 
 	f = fopen(path, "wb");
 	if (!f)
@@ -126,12 +131,13 @@ int tar_emit(efs_t *efs, const char *filename)
 	 * of the filename.
 	 */
 	if ((sb.st_mode & IFMT) == IFDIR) {
-		rc = strlen(blk.name);
-		blk.name[rc] = '/';
+		size_t sz;
+		sz = strlen(blk.name);
+		blk.name[sz] = '/';
 
 		/* Null-terminate the name, unless we ran out of space. */
-		if (rc < (sizeof(blk.name) -1))
-			blk.name[rc + 1] = '\0';
+		if (sz < (sizeof(blk.name) -1))
+			blk.name[sz + 1] = '\0';
 	}
 
 	rc = snprintf(blk.mode, sizeof(blk.mode), "%06o ", sb.st_mode & 0777);

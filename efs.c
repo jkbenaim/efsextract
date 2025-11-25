@@ -100,6 +100,7 @@ efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 {
 	__label__ out_error, out_ok;
 	int rc;
+	size_t sz;
 	efs_err_t erc;
 #if 0
 	printf("efs_get_blocks(%p, %p, %zu, %zu);\n", ctx, buf, firstlbn, nblks);
@@ -114,12 +115,12 @@ efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 #if 0
 	printf("fsread(%p, %u, %lu, %p);\n", buf, BLKSIZ, nblks, ctx->fs);
 #endif
-	rc = fsread(buf, BLKSIZ, nblks, ctx->fs);
+	sz = fsread(buf, BLKSIZ, nblks, ctx->fs);
 #if 0
-	printf("fsread: returning %d\n", rc);
+	printf("fsread: returning %d\n", sz;
 	hexdump(buf, BLKSIZ * nblks);
 #endif
-	if (rc != nblks) {
+	if (sz != nblks) {
 		erc = EFS_ERR_READFAIL;
 		goto out_error;
 	}
@@ -217,6 +218,8 @@ struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino)
 efs_ino_t efs_find_entry(efs_t *efs, const char *name)
 {
 	/* TODO */
+	(void)efs;
+	(void)name;
 	return 2;
 }
 
@@ -240,14 +243,14 @@ efs_dir_t *efs_opendir(efs_t *efs, const char *dirname)
 	size_t nel = 0;
 	struct efs_dirent *de;
 
-	dirp = calloc(sizeof(*dirp), 1);
+	dirp = calloc(1, sizeof(*dirp));
 	if (!dirp) goto out_error;
 
 	dirp->ino = efs_namei(efs, dirname);
 #if 0
 	printf("--ino: %u\n", dirp->ino);
 #endif
-	if (dirp->ino == -1) goto out_error;
+	if (dirp->ino == EFS_BADINO) goto out_error;
 
 	dirp->dirent = _efs_read_dirblks(efs, dirp->ino);
 	if (!dirp->dirent)
@@ -325,7 +328,7 @@ int efs_stat(efs_t *ctx, const char *pathname, struct efs_stat *statbuf)
 {
 	efs_ino_t ino;
 	ino = efs_namei(ctx, pathname);
-	if (ino == -1) return -1;
+	if (ino == EFS_BADINO) return -1;
 	return efs_stati(ctx, ino, statbuf);
 }
 
@@ -336,8 +339,8 @@ int efs_fstat(efs_file_t *file, struct efs_stat *statbuf)
 
 char *mkpath(char *path, char *name)
 {
-	int rc;
 	char *out;
+	size_t sz;
 
 	if (!path || !name)
 		return NULL;
@@ -351,8 +354,8 @@ char *mkpath(char *path, char *name)
 		if (!out)
 			err(1, "in malloc");
 
-		rc = snprintf(out, stringsize, "%s/%s", path, name);
-		if (rc >= stringsize)
+		sz = snprintf(out, stringsize, "%s/%s", path, name);
+		if (sz >= stringsize)
 			errx(1, "in snprintf");
 		out[stringsize - 1] = '\0';
 	}
@@ -696,7 +699,7 @@ unsigned _efs_nbytes_firstbn(
 
 size_t efs_fread_blocks(
 	void *ptr,
-	size_t lbn,
+	int lbn,
 	size_t numblocks,
 	efs_file_t *file
 ) {
@@ -840,7 +843,7 @@ size_t efs_fread(
 	efs_file_t *file
 ) {
 	size_t out = 0;
-	int i;
+	size_t i;
 
 #if 0
 	if (size > 0xc080c1a2bf5e9032ULL)
@@ -878,7 +881,7 @@ efs_file_t *efs_fopenat(
 	efs_file_t *out = NULL;
 
 	ino = _efs_nameiat(ctx, dirp->ino, path);
-	if (ino == (efs_ino_t)(-1)) {
+	if (ino == EFS_BADINO) {
 		errno = ENOENT;
 		goto out_error;
 	}
@@ -911,7 +914,7 @@ efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino)
 	efs_file_t *out = NULL;
 	if (!ctx) goto out_error;
 
-	out = calloc(sizeof(efs_file_t), 1);
+	out = calloc(1, sizeof(efs_file_t));
 	if (!out) goto out_error;
 
 	out->ctx = ctx;
@@ -1185,12 +1188,12 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 
 	dirents = _efs_read_dirblks(ctx, ino);
 	if (!dirents)
-		return -1;
+		return EFS_BADINO;
 
 	rc = _efs_nextpath(name, firstpart, &remaining);
 	if (rc == -1) {
 		free(dirents);
-		return -1;
+		return EFS_BADINO;
 	}
 #if 0
 	printf("firstpart: '%s'\n", firstpart);
@@ -1214,7 +1217,7 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 
 	free(dirents);
 
-	return -1;
+	return EFS_BADINO;
 }
 
 efs_ino_t efs_namei(efs_t *ctx, const char *name)
@@ -1224,7 +1227,7 @@ efs_ino_t efs_namei(efs_t *ctx, const char *name)
 
 queue_t queue_init(void)
 {
-	return calloc(sizeof(struct queue_s), 1);
+	return calloc(1,sizeof(struct queue_s));
 }
 
 void queue_free(queue_t q)
@@ -1318,12 +1321,14 @@ struct qent_s *queue_dequeue(queue_t q)
 
 	return out;
 }
+
 fileslice_t *fsopen(FILE *f, size_t base, size_t size)
 {
 	__label__ out_error;
 	fileslice_t *fs;
 	fpos_t old_pos;
 	int rc;
+	(void)size;
 
 	fs = calloc(1, sizeof(fileslice_t));
 	if (!fs) goto out_error;
@@ -1363,7 +1368,7 @@ int fsclose(fileslice_t *fs)
 size_t fsread(void *ptr, size_t size, size_t nmemb, fileslice_t *fs)
 {
 	__label__ out_error;
-	size_t rc, rc2;
+	ssize_t rc, rc2;
 	fpos_t old_pos;
 
 	/* Save old position */

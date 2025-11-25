@@ -58,6 +58,7 @@
 #define	EFS_SUPERBOFF	BBTOB(EFS_SUPERBB)	/* superblock byte offset */
 #define	EFS_BITMAPBOFF	BBTOB(EFS_BITMAPBB)	/* bitmap byte offset */
 #define	EFS_ROOTINO	((efs_ino_t)2)		/* where else... */
+#define	EFS_BADINO	((efs_ino_t)-1)
 
 /*
  * Inode parameters.

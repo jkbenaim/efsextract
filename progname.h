@@ -2,4 +2,4 @@
 
 extern char *__progname;
 
-void progname_init(int argc, char *argv[]);
+extern void progname_init(int argc, char *argv[]);
