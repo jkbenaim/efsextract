@@ -23,6 +23,7 @@
 #include "hexdump.h"
 #include "pdscan.h"
 #include "progname.h"
+#include "queue.h"
 #include "tar.h"
 #include "version.h"
 

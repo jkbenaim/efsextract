@@ -278,9 +278,6 @@ struct efs_dirblk {
 	uint8_t space[EFS_DIRBSIZE - EFS_DIRBLK_HEADERSIZE];
 } __attribute__((packed));
 
-struct efs_sb efstoh (struct efs_sb efs);
-struct efs_dinode efs_dinodetoh(struct efs_dinode inode);
-
 enum efs_fstype {
 	EFS_FSTYPE_NONE = 0,
 	EFS_FSTYPE_EFS,
@@ -361,17 +358,7 @@ typedef enum {
 	EFS_ERR_IS_XFS
 } efs_err_t;
 
-struct qent_s {
-	struct qent_s *next;
-	struct qent_s *prev;
-	char *path;
-};
-struct queue_s {
-	struct qent_s *head;
-	struct qent_s *tail;
-};
-typedef struct queue_s* queue_t;
-
+extern char *mkpath(char *path, char *name);
 extern efs_err_t dvh_open(dvh_t **ctx, const char *filename);
 extern efs_err_t dvh_close(dvh_t *ctx);
 extern fileslice_t *dvh_getParSlice(dvh_t *ctx, int parNum);
@@ -385,13 +372,6 @@ extern int fsclose(fileslice_t *fs);
 extern int fsseek(fileslice_t *fs, long offset, int whence);
 extern void fsrewind(fileslice_t *fs);
 extern size_t fsread(void *ptr, size_t size, size_t nmemb, fileslice_t *fs);
-
-extern queue_t queue_init(void);
-extern void queue_free(queue_t q);
-extern int queue_add_tail(queue_t q, char *path);
-extern int queue_add_head(queue_t q, char *path);
-extern int queue_add_queue_head(queue_t dst, queue_t src);
-extern struct qent_s *queue_dequeue(queue_t q);
 
 extern const char *efs_strerror(efs_err_t e);
 extern void vwarnefs(efs_err_t e, const char *fmt, va_list args);
@@ -410,29 +390,17 @@ extern int efs_feof(efs_file_t *file);
 extern int efs_ferror(efs_file_t *file);
 
 extern int efs_stat(efs_t *ctx, const char *pathname, struct efs_stat *statbuf);
-extern int efs_stati(efs_t *ctx, efs_ino_t ino, struct efs_stat *statbuf);
 extern int efs_fstat(efs_file_t *file, struct efs_stat *statbuf);
 
-extern efs_ino_t efs_find_entry(efs_t *efs, const char *name);
 extern efs_dir_t *efs_opendir(efs_t *efs, const char *dirname);
 extern int efs_closedir(efs_dir_t *dirp);
 extern struct efs_dirent *efs_readdir(efs_dir_t *dirp);
 extern void efs_rewinddir(efs_dir_t *dirp);
 
-extern efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks);
 extern efs_err_t efs_open(efs_t **ctx, fileslice_t *f);
 extern void efs_close(efs_t *ctx);
-extern struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino);
 extern efs_err_t efs_easy_open(efs_t **ctx, const char *filename);
 
-extern efs_ino_t efs_namei(efs_t *ctx, const char *name);
-
-extern struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino);
-
-extern uint32_t efs_extent_get_bn(struct efs_extent extent);
-extern uint32_t efs_extent_get_offset(struct efs_extent extent);
-
-extern char *mkpath(char *path, char *name);
 extern int efs_nftw(
 	efs_t *efs,
 	const char *dirpath,

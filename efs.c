@@ -8,8 +8,12 @@
 #include "endian.h"
 #include "err.h"
 #include "progname.h"
+#include "queue.h"
 
-struct efs_sb efstoh(struct efs_sb efs)
+static struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino);
+static efs_ino_t efs_namei(efs_t *ctx, const char *name);
+
+static struct efs_sb efstoh(struct efs_sb efs)
 {
 	struct efs_sb out = {0,};
 
@@ -38,7 +42,7 @@ struct efs_sb efstoh(struct efs_sb efs)
 	return out;
 }
 
-uint32_t efs_extent_get_bn(struct efs_extent extent)
+static uint32_t efs_extent_get_bn(struct efs_extent extent)
 {
 	uint8_t buf[8];
 	uint32_t out = 0;
@@ -48,7 +52,7 @@ uint32_t efs_extent_get_bn(struct efs_extent extent)
 	return out;
 }
 
-uint32_t efs_extent_get_offset(struct efs_extent extent)
+static uint32_t efs_extent_get_offset(struct efs_extent extent)
 {
 	uint8_t buf[8];
 	uint32_t out = 0;
@@ -58,7 +62,7 @@ uint32_t efs_extent_get_offset(struct efs_extent extent)
 	return out;
 }
 
-struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
+static struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
 {
 	size_t i;
 	struct efs_dinode out = {0,};
@@ -96,7 +100,7 @@ struct efs_dinode efs_dinodetoh(struct efs_dinode inode)
 	return out;
 }
 
-efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
+static efs_err_t efs_get_blocks(efs_t *ctx, void *buf, size_t firstlbn, size_t nblks)
 {
 	__label__ out_error, out_ok;
 	int rc;
@@ -184,12 +188,12 @@ struct efs_ino_inf_s {
 	unsigned slot;
 };
 
-size_t itobb(efs_t *ctx, efs_ino_t ino)
+static size_t itobb(efs_t *ctx, efs_ino_t ino)
 {
 	return EFS_ITOBB(&ctx->sb, ino);
 }
 
-struct efs_ino_inf_s efs_get_inode_info(efs_t *ctx, efs_ino_t ino)
+static struct efs_ino_inf_s efs_get_inode_info(efs_t *ctx, efs_ino_t ino)
 {
 	struct efs_ino_inf_s out = {0,};
 
@@ -201,7 +205,7 @@ struct efs_ino_inf_s efs_get_inode_info(efs_t *ctx, efs_ino_t ino)
 	return out;
 }
 
-struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino)
+static struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino)
 {
 	struct efs_dinode inodes[4];
 
@@ -215,19 +219,11 @@ struct efs_dinode efs_get_inode(efs_t *ctx, unsigned ino)
 	return inodes[info.slot];
 }
 
-efs_ino_t efs_find_entry(efs_t *efs, const char *name)
-{
-	/* TODO */
-	(void)efs;
-	(void)name;
-	return 2;
-}
-
 /*
  * Directory functions.
  */
 
-int compar(const void *a, const void *b)
+static int compar(const void *a, const void *b)
 {
 	struct efs_dirent *de_a, *de_b;
 	de_a = (struct efs_dirent *)a;
@@ -292,7 +288,7 @@ void efs_rewinddir(efs_dir_t *dirp)
 	dirp->dirent = dirp->_dirent_memobj;
 }
 
-int efs_stati(efs_t *ctx, efs_ino_t ino, struct efs_stat *statbuf)
+static int efs_stati(efs_t *ctx, efs_ino_t ino, struct efs_stat *statbuf)
 {
 	struct efs_dinode dinode;
 	dinode = efs_get_inode(ctx, ino);
@@ -500,13 +496,12 @@ void errefs(int eval, efs_err_t e, const char *fmt, ...)
 #define MAX(a,b) (a>b?a:b)
 #define MIN(a,b) (a>b?b:a)
 
-const char *_getfirstpathpart(const char *name);
-struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode);
-struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos);
-efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name);
-efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino);
+static struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode);
+static struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos);
+static efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name);
+static efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino);
 
-struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
+static struct efs_extent *_efs_get_extents(efs_t *ctx, struct efs_dinode *dinode)
 {
 	__label__ out_error, out_ok;
 	efs_err_t erc;
@@ -644,7 +639,7 @@ out_error:
 	return NULL;
 }
 
-struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos)
+static struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents, size_t pos)
 {
 	unsigned i;
 	for (i = 0; i < numextents; i++) {
@@ -661,7 +656,7 @@ struct efs_extent *_efs_find_extent(struct efs_extent *exs, unsigned numextents,
 	return NULL;
 }
 
-unsigned _efs_nbytes_this_extent(
+static unsigned _efs_nbytes_this_extent(
 	struct efs_extent *ex,
 	unsigned pos,
 	unsigned nbytes
@@ -686,7 +681,7 @@ out_error:
 	return 0;
 }
 
-unsigned _efs_nbytes_firstbn(
+static unsigned _efs_nbytes_firstbn(
 	struct efs_extent *ex,
 	unsigned pos
 ) {
@@ -761,7 +756,7 @@ size_t efs_fread_blocks(
 	return numblocks;
 }
 
-size_t _efs_fread_aux(
+static size_t _efs_fread_aux(
 	void *ptr,
 	size_t size,
 	efs_file_t *file
@@ -908,7 +903,7 @@ efs_file_t *efs_fopen(
 	return efs_fopenat(ctx, &dir, path);
 }
 
-efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino)
+static efs_file_t *_efs_file_openi(efs_t *ctx, efs_ino_t ino)
 {
 	__label__ out_error, out_ok;
 	efs_file_t *out = NULL;
@@ -1033,7 +1028,7 @@ int efs_ferror(efs_file_t *file)
 
 #define EFS_DIRENT_INCR	(100)
 
-struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
+static struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 {
 	struct efs_dirent *out = NULL, *old = NULL;
 	size_t out_size = 0;
@@ -1129,7 +1124,7 @@ struct efs_dirent *_efs_read_dirblks(efs_t *ctx, efs_ino_t ino)
 /* returns the leftmost path part in firstpart[],
  *
  */
-int _efs_nextpath(
+static int _efs_nextpath(
 	const char *in,
 	char *firstpart,
 	const char **remaining
@@ -1172,7 +1167,7 @@ int _efs_nextpath(
 	return 0;
 }
 
-efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
+static efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 {
 	int rc;
 	struct efs_dirent *dirents;
@@ -1220,107 +1215,11 @@ efs_ino_t _efs_nameiat(efs_t *ctx, efs_ino_t ino, const char *name)
 	return EFS_BADINO;
 }
 
-efs_ino_t efs_namei(efs_t *ctx, const char *name)
+static efs_ino_t efs_namei(efs_t *ctx, const char *name)
 {
 	return _efs_nameiat(ctx, EFS_BLK_ROOTINO, name);
 }
 
-queue_t queue_init(void)
-{
-	return calloc(1,sizeof(struct queue_s));
-}
-
-void queue_free(queue_t q)
-{
-	struct qent_s *qe;
-	while ((qe = queue_dequeue(q))) {
-		free(qe->path);
-		free(qe);
-	}
-	free(q);
-}
-
-/* add to tail of queue */
-int queue_add_tail(queue_t q, char *path)
-{
-	struct qent_s *qe;
-
-	qe = calloc(1, sizeof(*qe));
-	if (!qe) err(1, "in malloc");
-
-	qe->path = path;
-
-	if (q->tail)
-		q->tail->next = qe;
-	qe->prev = q->tail;
-	q->tail = qe;
-	if (!q->head)
-		q->head = qe;
-
-	return 0;
-}
-
-/* add to head of queue */
-int queue_add_head(queue_t q, char *path)
-{
-	struct qent_s *qe;
-
-	qe = calloc(1, sizeof(*qe));
-	if (!qe) err(1, "in malloc");
-
-	qe->path = path;
-
-	if (q->head)
-		q->head->prev = qe;
-	qe->next = q->head;
-	q->head = qe;
-	if (!q->tail)
-		q->tail = qe;
-
-	return 0;
-}
-
-/* add whole queue to head of another queue, then free the source queue */
-int queue_add_queue_head(queue_t dst, queue_t src)
-{
-#if 0
-	if (src->tail) {
-		if (dst->head)
-			dst->head->prev = src->tail;
-		if (src->tail)
-			src->tail->next = dst->head;
-		dst->head = src->head;
-	}
-#endif
-
-	struct qent_s *qe;
-	while ((qe = queue_dequeue(src))) {
-		queue_add_head(dst, qe->path);
-		free(qe);
-	}
-
-	src->head = src->tail = NULL;
-	queue_free(src);
-
-	return 0;
-}
-
-/* pop from queue head */
-struct qent_s *queue_dequeue(queue_t q)
-{
-	struct qent_s *out;
-	out = q->head;
-
-	if (q->head) {
-		q->head = q->head->next;
-		if (q->head)
-			q->head->prev = NULL;
-	}
-	if (!q->head)
-		q->tail = NULL;
-
-	return out;
-}
 
 fileslice_t *fsopen(FILE *f, size_t base, size_t size)
 {
@@ -1461,7 +1360,8 @@ void fsrewind(fileslice_t *fs)
 {
 	fsseek(fs, 0, SEEK_SET);
 }
-void _dvh_ntoh(struct dvh_s *dvh);
+
+static void _dvh_ntoh(struct dvh_s *dvh);
 
 efs_err_t dvh_open(dvh_t **ctx, const char *filename)
 {
@@ -1552,7 +1452,7 @@ efs_err_t dvh_close(dvh_t *ctx)
 	return EFS_ERR_OK;
 }
 
-void _dvh_ntoh(struct dvh_s *dvh)
+static void _dvh_ntoh(struct dvh_s *dvh)
 {
 	unsigned i;
 	dvh->vh_magic = be32toh(dvh->vh_magic);
