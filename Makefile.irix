@@ -2,12 +2,12 @@ LIBCDIO_VERSION = 2.1.0
 LIBCDIO_NAME = libcdio-$(LIBCDIO_VERSION)
 
 target  ?= efsextract
-objects := asprintf.o efsextract.o efs.o hexdump.o pdscan.o progname.o tar.o
+objects := asprintf.o efsextract.o efs.o hexdump.o pdscan.o progname.o queue.o tar.o
 
 #EXTRAS += -fsanitize=bounds -fsanitize=undefined -fsanitize=null -fcf-protection=full -fstack-protector-all -fstack-check -Wimplicit-fallthrough -fanalyzer -Wall
 
 LDFLAGS += -static ${EXTRAS}
-CFLAGS  += -flto -std=gnu2x -Og -ggdb -Ilibcdio-install/include ${EXTRAS}
+CFLAGS  += -std=gnu9x -O2 -ggdb -Ilibcdio-install/include ${EXTRAS}
 
 .PHONY: all
 all:	$(target) README
