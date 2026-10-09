@@ -202,35 +202,24 @@ int tar_emit(efs_t *efs, const char *filename)
 		err(1, "couldn't write to archive");
 
 	if ((sb.st_mode & IFMT) == IFREG) {
-		size_t tailBytes;
+		size_t bytesLeft;
 		efs_file_t *src;
-		const size_t bufsiz = 512;
-		size_t blockNum;
 		uint8_t *buf;
 
-		buf = calloc(bufsiz, 1);
+		buf = calloc(COPYBUFSIZ, 1);
 		if (!buf) err(1, "calloc");
-		tailBytes = (size_t)(sb.st_size) % bufsiz;
-#if 0
-		printf("sb.st_size: %d, tailBytes: %zu\n", sb.st_size, tailBytes);
-#endif
 		src = efs_fopen(efs, filename);
 		if (!src) errx(1, "couldn't open efs file '%s' as regular file", filename);
-		for (blockNum = 0; blockNum < (sb.st_size / bufsiz); blockNum++) {
-			sz = efs_fread(buf, bufsiz, 1, src);
+		bytesLeft = sb.st_size;
+		while (bytesLeft) {
+			size_t len = (bytesLeft < COPYBUFSIZ) ? bytesLeft : COPYBUFSIZ;
+			sz = efs_fread(buf, len, 1, src);
 			if (sz != 1)
 				errx(1, "couldn't read from source file '%s'", filename);
-			sz = fwrite(buf, bufsiz, 1, f);
+			sz = fwrite(buf, len, 1, f);
 			if (sz != 1)
-				err(1, "while writing to tar (main blocks)");
-		}
-		if (tailBytes) {
-			sz = efs_fread(buf, tailBytes, 1, src);
-			if (sz != 1)
-				errx(1, "couldn't read from source file '%s'", filename);
-			sz = fwrite(buf, tailBytes, 1, f);
-			if (sz != 1)
-				err(1, "while writing to tar (tail bytes)");
+				err(1, "while writing to tar");
+			bytesLeft -= len;
 		}
 		/* pad out to a multiple of 512 bytes */
 		if (sb.st_size % 512) {

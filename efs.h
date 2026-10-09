@@ -9,6 +9,11 @@
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(*x))
 
 #define BLKSIZ 512
+
+/* Buffer size for copying file data. Reads of many blocks at once are much
+ * faster than reading one block at a time. Must be a multiple of BLKSIZ.
+ */
+#define COPYBUFSIZ (1024 * BLKSIZ)
 #define EFS_BLK_SB	(1)
 #define EFS_BLK_ROOTINO	(2)
 #define EFS_OLDMAGIC	0x00072959L

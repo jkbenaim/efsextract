@@ -113,10 +113,9 @@ void emit_regfile(efs_t *efs, const char *path)
 	int rc;
 	FILE *dst;
 	efs_file_t *src;
-	char blk[BLKSIZ];
+	uint8_t *buf;
 	size_t sz;
 	size_t bytesLeft;
-	size_t blockNum;
 
 	rc = efs_stat(efs, path, &sb);
 	if (rc == -1)
@@ -136,24 +135,23 @@ void emit_regfile(efs_t *efs, const char *path)
 	if (!dst)
 		err(1, "couldn't open destination file '%s'", path);
 
-	for (blockNum = 0; blockNum < (sb.st_size / 512UL); blockNum++) {
-		sz = efs_fread(blk, BLKSIZ, 1, src);
+	buf = malloc(COPYBUFSIZ);
+	if (!buf)
+		err(1, "in malloc");
+
+	bytesLeft = sb.st_size;
+	while (bytesLeft) {
+		size_t len = (bytesLeft < COPYBUFSIZ) ? bytesLeft : COPYBUFSIZ;
+		sz = efs_fread(buf, len, 1, src);
 		if (sz != 1)
 			err(1, "couldn't read from source file '%s'", path);
-		sz = fwrite(blk, BLKSIZ, 1, dst);
+		sz = fwrite(buf, len, 1, dst);
 		if (sz != 1)
 			err(1, "couldn't write to destination file '%s'", path);
-	}
-	bytesLeft = sb.st_size & (BLKSIZ - 1);
-	if (bytesLeft) {
-		sz = efs_fread(blk, bytesLeft, 1, src);
-		if (sz != 1)
-			err(1, "couldn't read from source file '%s'", path);
-		sz = fwrite(blk, bytesLeft, 1, dst);
-		if (sz != 1)
-			err(1, "couldn't write to destination file '%s'", path);
+		bytesLeft -= len;
 	}
 
+	free(buf);
 	efs_fclose(src);
 	fclose(dst);
 
