@@ -723,10 +723,10 @@ size_t efs_fread_blocks(
 		unsigned offset_in_extent;
 		unsigned blocks_this_extent;
 
-		ex = _efs_find_extent(file->exs, file->numextents, lbn * BLKSIZ);
+		ex = _efs_find_extent(file->exs, file->numextents, (lbn + done) * BLKSIZ);
 		if (!ex) errx(1, "in efs_fread_blocks");
-		offset_in_extent = lbn - efs_extent_get_offset(*ex);
-		blocks_this_extent = MIN(numblocks, ex->ex_length - offset_in_extent);
+		offset_in_extent = (lbn + done) - efs_extent_get_offset(*ex);
+		blocks_this_extent = MIN(numblocks - done, ex->ex_length - offset_in_extent);
 #if 0
 		printf("blocks_this_extent: %u\n", blocks_this_extent);
 #endif
@@ -775,13 +775,17 @@ static size_t _efs_fread_aux(
 		unsigned start, len, blknum;
 		size_t rc;
 		uint8_t *buf = calloc(BLKSIZ, 1);
+		if (!buf) return 0;
 
 		start = file->pos % BLKSIZ;
 		len = MIN(size, (BLKSIZ - start));
 		blknum = file->pos / BLKSIZ;
 
 		rc = efs_fread_blocks(buf, blknum, 1, file);
-		if (rc != 1) return 0;
+		if (rc != 1) {
+			free(buf);
+			return 0;
+		}
 
 		memcpy(ptr, &buf[start], len);
 		file->pos += len;
@@ -815,11 +819,15 @@ static size_t _efs_fread_aux(
 		size_t rc;
 		uint8_t *buf = calloc(BLKSIZ, 1);
 		unsigned blknum;
+		if (!buf) return 0;
 
 		blknum = file->pos / BLKSIZ;
 
 		rc = efs_fread_blocks(buf, blknum, 1, file);
-		if (rc != 1) return 0;
+		if (rc != 1) {
+			free(buf);
+			return 0;
+		}
 
 		memcpy(ptr, buf, size);
 		file->pos += size;
@@ -983,7 +991,7 @@ int efs_fseek(efs_file_t *file, long offset, int whence)
 		newpos = file->pos;
 		break;
 	  case SEEK_END:
-		newpos = file->dinode.di_size -1;
+		newpos = file->dinode.di_size;
 		break;
 	  default:
 		errno = EINVAL;
@@ -991,7 +999,7 @@ int efs_fseek(efs_file_t *file, long offset, int whence)
 	}
 
 	newpos += offset;
-	if (offset < 0) {
+	if (newpos < 0) {
 		errno = EINVAL;
 		return -1;
 	}
