@@ -33,5 +33,12 @@ enum tar_type_e {
 
 extern int tar_create(const char *path);
 extern int tar_close(void);
+/* Longest path IRIX tar will archive (in its default POSIX mode). */
+#define TAR_MAXPATH 255
+
+/* tar_emit returns 0 if the file was written, 1 if it was skipped because
+ * IRIX tar couldn't archive it either (the reason is printed), or a
+ * negative number on error.
+ */
 extern int tar_emit(efs_t *efs, const char *filename);
 extern int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename);

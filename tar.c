@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +29,44 @@ char tar_mode_lookup(uint16_t mode)
 	default:
 		return '\0';
 	}
+}
+
+/* Store a path in the header the same way IRIX tar's putname() does.
+ * Paths shorter than 100 bytes go in the name field. Longer paths are
+ * split at the rightmost '/' that leaves at most 155 bytes of prefix.
+ * A trailing '/' (on a directory) doesn't count. The part after the '/'
+ * must be shorter than 99 bytes. Returns -1 if the path can't be stored,
+ * in which case IRIX tar skips the file.
+ */
+static int tar_putname(struct tarblk_s *blk, const char *path)
+{
+	size_t len = strlen(path);
+	const char *p;
+
+	if (len > TAR_MAXPATH)
+		return -1;
+
+	if (len < sizeof(blk->name)) {
+		strncpy(blk->name, path, sizeof(blk->name));
+		return 0;
+	}
+
+	p = path + ((len < sizeof(blk->nameprefix)) ? len : sizeof(blk->nameprefix));
+	for (;;) {
+		while ((p > path) && (*p != '/'))
+			p--;
+		if (p == path)
+			return -1;
+		if (strlen(p) >= sizeof(blk->name))
+			return -1;
+		if (p[1] != '\0')
+			break;
+		/* That was a directory's trailing '/'; look further back. */
+		p--;
+	}
+	memcpy(blk->nameprefix, path, p - path);
+	memcpy(blk->name, p + 1, len - (p - path) - 1);
+	return 0;
 }
 
 uint32_t tar_getsum(struct tarblk_s blk)
@@ -89,7 +128,8 @@ int tar_emit(efs_t *efs, const char *filename)
 	struct tarblk_s blk = {0,};
 	struct efs_stat sb = {0,};
 	int retval;
-	size_t filename_len;
+	char path[TAR_MAXPATH + 2];
+	bool isdir;
 	uint32_t sum;
 
 	if (!filename) {
@@ -104,40 +144,14 @@ int tar_emit(efs_t *efs, const char *filename)
 		goto out_error;
 	}
 
-	filename_len = strlen(filename);
-	if ((sb.st_mode & IFMT) == IFDIR) {
-		/* For directories, we append a '/' to the filename. */
-		filename_len++;
-	}
-
-	if (filename_len > (sizeof(blk.name) + sizeof(blk.nameprefix))) {
-		/* file name too long for tar format */
-		retval = -1;
-		goto out_error;
-	} else if (filename_len > sizeof(blk.name)) {
-		/* long file name */
-		char *split = strrchr(filename, '/');
-		if (!split)
-			errx(1, "while splitting tar filename: '%s'", filename);
-		strncpy(blk.nameprefix, filename, split-filename);
-		strcpy(blk.name, split + 1);
-	} else {
-		/* short file name */
-		strncpy(blk.name, filename, sizeof(blk.name));
-	}
-
-	/*
-	 * if we are writing a directory, then append a '/' to the end
-	 * of the filename.
-	 */
-	if ((sb.st_mode & IFMT) == IFDIR) {
-		size_t sz;
-		sz = strlen(blk.name);
-		blk.name[sz] = '/';
-
-		/* Null-terminate the name, unless we ran out of space. */
-		if (sz < (sizeof(blk.name) -1))
-			blk.name[sz + 1] = '\0';
+	/* IRIX tar stores directories with a trailing '/'. */
+	isdir = ((sb.st_mode & IFMT) == IFDIR);
+	rc = snprintf(path, sizeof(path), "%s%s", filename, isdir ? "/" : "");
+	if ((rc < 0) || ((size_t)rc >= sizeof(path)) || (tar_putname(&blk, path) == -1)) {
+		warnx("%s: total path too long (%zu, %d max), or filename > %d, skipping",
+			filename, strlen(filename) + isdir, TAR_MAXPATH,
+			(int)sizeof(blk.name) - 2);
+		return 1;
 	}
 
 	rc = snprintf(blk.mode, sizeof(blk.mode), "%06o ", sb.st_mode & 0777);
@@ -163,9 +177,19 @@ int tar_emit(efs_t *efs, const char *filename)
 
 	if ((sb.st_mode & IFMT) == IFLNK) {
 		efs_file_t *src;
+		/* IRIX tar only stores link targets shorter than 100 bytes,
+		 * so there's room for the NUL. Longer ones are skipped.
+		 */
+		if ((sb.st_size < 0) || ((size_t)sb.st_size >= sizeof(blk.lnk))) {
+			warnx("%s: destination filename of symbolic link too long (%d), %d max, skipping",
+				filename, (int)sb.st_size, (int)sizeof(blk.lnk) - 1);
+			return 1;
+		}
 		src = efs_fopen(efs, filename);
 		if (!src) err(1, "couldn't open efs file '%s' as link", filename);
-		efs_fread(blk.lnk, sb.st_size, 1, src);
+		sz = efs_fread(blk.lnk, sb.st_size, 1, src);
+		if (sz != 1)
+			errx(1, "couldn't read link target of '%s'", filename);
 		efs_fclose(src);
 		/* also, set size to zero */
 		rc = snprintf(blk.size, sizeof(blk.size), "%011o", 0);
