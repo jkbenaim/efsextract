@@ -13,5 +13,5 @@ jobs:
       - name: Install developement packages
         run:  sudo apt install -y gcc-mingw-w64-i686 make libcdio-dev
       - name: Build
-        run:  make -k
+        run:  make -k -f Makefile.win
       
